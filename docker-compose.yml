@@ -1,31 +1,47 @@
 version: '3.8'
 
 services:
-  # 1. 데이터베이스 (MySQL 8.0)
+  # 1. 백엔드 서버 (New!)
+  backend:
+    container_name: newspaper-api
+    build: ./api-server  # api-server 폴더에 있는 Dockerfile을 보고 빌드해라
+    ports:
+      - "8080:8080"
+    environment:
+      # 도커 내부에서는 'localhost' 대신 서비스 이름(db)을 써야 통신이 됨
+      - SPRING_DATASOURCE_URL=jdbc:mysql://newspaper-db:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+    depends_on:
+      - db
+      - minio
+    restart: always
+
+  # 2. 데이터베이스
   db:
     image: mysql:8.0
     container_name: newspaper-db
     environment:
-      MYSQL_ROOT_PASSWORD: root  # 개발용 비밀번호
-      MYSQL_DATABASE: newspaper  # 자동으로 생성될 DB 이름
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: newspaper
     ports:
       - "3306:3306"
-    command: # 한글 깨짐 방지 설정
+    command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     volumes:
-      - ./data/mysql:/var/lib/mysql # 데이터를 로컬 폴더에 저장 (컨테이너 꺼도 유지)
+      - ./data/mysql:/var/lib/mysql
 
-  # 2. 오브젝트 스토리지 (MinIO - 가짜 S3)
+  # 3. 오브젝트 스토리지
   minio:
     image: minio/minio
     container_name: newspaper-minio
     ports:
-      - "9000:9000"  # API 포트 (Spring이 접속)
-      - "9001:9001"  # 관리자 콘솔 포트 (웹 브라우저 접속)
+      - "9000:9000"
+      - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin      # 아이디
-      MINIO_ROOT_PASSWORD: minioadmin  # 비밀번호
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":9001"
     volumes:
       - ./data/minio:/data
