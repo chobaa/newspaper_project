@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: root  # docker-compose에서 설정한 비번
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # 개발용: Entity를 수정하면 DB 테이블도 자동으로 고쳐줌 (편함)
+    properties:
+      hibernate:
+        format_sql: true # 실행되는 SQL을 예쁘게 보여줌
+        show_sql: true   # 실행되는 SQL을 로그에 찍음
+
+  # 파일 업로드 용량 제한 (사진 많이 올리니까 넉넉하게)
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 30MB
+
+# MinIO (S3) 설정 (나중에 S3 라이브러리 추가하면 사용)
+cloud:
+  aws:
+    s3:
+      endpoint: http://localhost:9000
+    credentials:
+      access-key: minioadmin
+      secret-key: minioadmin
+    region:
+      static: us-east-1 # MinIO는 리전 무관하지만 형식상 필요
+    stack:
+      auto: false
