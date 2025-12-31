@@ -1,12 +1,12 @@
-# 1. 자바 17 실행 환경이 설치된 리눅스를 베이스로 사용
-FROM openjdk:17-jdk-slim
+# 1. 자바 실행 환경(JRE)만 있는 가벼운 이미지를 사용합니다.
+FROM eclipse-temurin:17-jdk
 
-# 2. 작업할 폴더 위치 설정
+# 2. 작업 폴더 설정
 WORKDIR /app
 
-# 3. 빌드된 JAR 파일을 도커 이미지 안으로 복사
-# (나중에 Github Actions가 빌드한 파일이 build/libs에 생깁니다)
-COPY build/libs/*.jar app.jar
+# 3. 아까 1단계에서 로컬에 만들어진 jar 파일을 도커 안으로 복사합니다.
+# (build/libs 폴더 안에 -SNAPSHOT.jar 로 끝나는 파일 하나를 app.jar로 복사)
+COPY build/libs/*-SNAPSHOT.jar app.jar
 
-# 4. 컨테이너가 시작될 때 실행할 명령어
+# 4. 실행 명령어
 ENTRYPOINT ["java", "-jar", "app.jar"]
