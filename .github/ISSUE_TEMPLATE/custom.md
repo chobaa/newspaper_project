@@ -1,0 +1,26 @@
+---
+name: Custom issue template
+about: Describe this issue template's purpose here.
+title: ''
+labels: ''
+assignees: ''
+
+---
+
+## 📝 작업 내용
+<!-- 어떤 작업을 수행할 건지에 대해서 간단히 작성해 주세요. -->
+
+-
+
+## 📢 참고 사항
+<!-- 팀원이 참고할 사항에 대해서 간단히 작성해 주세요. -->
+
+-
+
+## 📌 관련된 이슈
+<!-- 관련된 이슈가 있다면 작성해 주세요. -->
+
+-
+
+## ✅ Check List
+- [ ] assignees, label을 맞게 설정했나요?
