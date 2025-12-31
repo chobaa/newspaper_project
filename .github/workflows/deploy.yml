@@ -21,11 +21,11 @@ jobs:
           distribution: 'temurin'
 
       # 3. 스프링 부트 빌드 (JAR 파일 생성)
-      # 윈도우라서 gradlew.bat 사용 (리눅스면 ./gradlew)
+      # 윈도우라서 gradlew.bat 사용 (추후 테스트 수정)
       - name: Build with Gradle
         run: |
-          cd api-server
-          .\gradlew.bat bootJar
+          cd src/api-server
+          .\gradlew.bat bootJar -x test
 
       # 4. 도커 컨테이너 재배포
       # 기존 백엔드만 내렸다가 -> 다시 빌드해서 -> 올림

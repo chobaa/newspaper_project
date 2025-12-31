@@ -4,7 +4,7 @@ services:
   # 1. 백엔드 서버 (New!)
   backend:
     container_name: newspaper-api
-    build: ./api-server  # api-server 폴더에 있는 Dockerfile을 보고 빌드해라
+    build: ./src/api-server  # api-server 폴더에 있는 Dockerfile을 보고 빌드해라
     ports:
       - "8080:8080"
     environment:
