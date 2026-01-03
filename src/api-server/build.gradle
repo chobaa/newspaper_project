@@ -1,17 +1,14 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.0.1'
-	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.springframework.boot' version '3.2.4' // 4.0.1은 없는 버전이라 3.2.4로 고정
+	id 'io.spring.dependency-management' version '1.1.4'
 }
 
 group = 'com.newspaper'
 version = '0.0.1-SNAPSHOT'
-description = 'Newspaper Project for Spring Boot'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
-	}
+	sourceCompatibility = '17'
 }
 
 configurations {
@@ -25,13 +22,22 @@ repositories {
 }
 
 dependencies {
+	// 1. 웹 관련
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	// 2. 데이터베이스 (JPA)
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
+
+	// 3. AWS S3 (이미지 업로드용)
+	implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3:3.1.1'
+
+	// 4. 유틸리티 (Lombok)
+	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+	// 5. 테스트
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
