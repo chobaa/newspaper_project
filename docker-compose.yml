@@ -12,6 +12,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://newspaper-db:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
+
+      - AWS_REGION=us-east-1
+      - CLOUD_AWS_S3_ENDPOINT=http://minio:9000
     depends_on:
       - db
       - minio
