@@ -38,4 +38,11 @@ public class Article {
         this.writer = writer;
     }
 
+    public void addImage(Image image) {
+        this.images.add(image);
+    }
+
+    public void increaseViewCount() {
+        this.viewcount++;
+    }
 }
