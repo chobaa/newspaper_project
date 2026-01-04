@@ -1,11 +1,10 @@
 package com.newspaper.api_server.controller;
 
+import com.newspaper.api_server.dto.ArticleResponse;
 import com.newspaper.api_server.dto.ArticleSaveRequest;
 import com.newspaper.api_server.service.ArticleService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -13,9 +12,15 @@ public class ArticleApiController {
 
     private final ArticleService articleService;
 
-    // POST http://localhost:8080/api/articles
+    // 기사 저장 (JSON)
     @PostMapping("/api/articles")
     public Long save(@RequestBody ArticleSaveRequest request) {
         return articleService.saveArticle(request);
+    }
+
+    // 기사 조회 (조회수 증가)
+    @GetMapping("/api/articles/{id}")
+    public ArticleResponse findById(@PathVariable Long id) {
+        return articleService.getArticle(id);
     }
 }

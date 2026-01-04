@@ -1,6 +1,8 @@
 package com.newspaper.api_server.service;
 
 import com.newspaper.api_server.domain.Article;
+import com.newspaper.api_server.domain.Image;
+import com.newspaper.api_server.dto.ArticleResponse; // (아래에서 만들 예정)
 import com.newspaper.api_server.dto.ArticleSaveRequest;
 import com.newspaper.api_server.repository.ArticleRepository;
 import lombok.RequiredArgsConstructor;
@@ -8,24 +10,43 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor // Repository를 자동으로 주입(DI)해줍니다.
+@RequiredArgsConstructor
 public class ArticleService {
 
     private final ArticleRepository articleRepository;
 
-    @Transactional // "이 함수가 끝날 때까지 에러 없으면 커밋, 에러나면 롤백해라"
+    // 1. 기사 저장 (이미 업로드된 URL들을 연결)
+    @Transactional
     public Long saveArticle(ArticleSaveRequest request) {
-        // 1. DTO -> Entity 변환
         Article article = new Article(
                 request.title(),
                 request.content(),
                 request.writer()
         );
 
-        // 2. DB 저장 (INSERT SQL 자동 실행)
-        Article savedArticle = articleRepository.save(article);
+        // 프론트에서 받은 URL 리스트를 순회하며 Image 엔티티 생성
+        if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
+            for (String url : request.imageUrls()) {
+                // URL에서 파일명 추출 (단순 저장용)
+                String originalName = url.substring(url.lastIndexOf("/") + 1);
 
-        // 3. 저장된 ID 반환
-        return savedArticle.getId();
+                Image image = new Image(url, originalName, article);
+                article.addImage(image);
+            }
+        }
+
+        return articleRepository.save(article).getId();
+    }
+
+    // 2. 기사 상세 조회 (조회수 증가 포함)
+    @Transactional
+    public ArticleResponse getArticle(Long id) {
+        Article article = articleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
+
+        // 조회수 1 증가 (Dirty Checking으로 자동 DB 반영)
+        article.increaseViewCount();
+
+        return ArticleResponse.from(article);
     }
 }

@@ -26,6 +26,8 @@ public class Article {
 
     private LocalDateTime regDate = LocalDateTime.now(); // 작성한 시간
 
+    private Long viewcount = 0L;
+
     // 기사 하나에 사진 여러 개가 가능하도록 구성 (1 : N), Cascade로 기사 삭제 시 이미지도 제거
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
     private List<Image> images = new ArrayList<>();
@@ -36,4 +38,11 @@ public class Article {
         this.writer = writer;
     }
 
+    public void addImage(Image image) {
+        this.images.add(image);
+    }
+
+    public void increaseViewCount() {
+        this.viewcount++;
+    }
 }

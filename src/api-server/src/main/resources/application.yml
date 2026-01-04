@@ -24,6 +24,7 @@ cloud:
   aws:
     s3:
       endpoint: http://localhost:9000
+      bucket: newspaper-bucket
     credentials:
       access-key: minioadmin
       secret-key: minioadmin
