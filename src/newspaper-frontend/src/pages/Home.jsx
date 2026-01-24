@@ -1,29 +1,49 @@
-// 1. 우리가 만든 부품들을 가져옵니다 (Import)
+import { useState } from "react";
 import Header from "../components/Header";
-import NewsSection from "../components/NewsSection"; // 👈 방금 만든 기사 영역
-import Sidebar from "../components/Sidebar";         // 👈 방금 만든 사이드바
+import NewsSection from "../components/NewsSection";
+import Sidebar from "../components/Sidebar";
+import LoginModal from "../components/LoginModal";
+import Footer from "../components/Footer";
 
 export default function Home() {
+  const [category, setCategory] = useState("전체");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  const handleLoginClick = () => {
+    if (isAdmin) {
+      if(window.confirm("로그아웃 하시겠습니까?")) setIsAdmin(false);
+    } else {
+      setIsLoginModalOpen(true);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      
-      {/* 1. 헤더 조립 */}
-      <Header />
+    <div className="min-h-screen bg-gray-50 flex flex-col relative">
 
-      {/* 2. 메인 레이아웃 조립 (7:3 비율) */}
-      <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-10 gap-8">
-        
-        {/* [왼쪽 70%] 기사 영역 부품 끼우기 */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLogin={() => setIsAdmin(true)}
+      />
+
+      <Header
+        onSelectCategory={setCategory}
+        onLoginClick={handleLoginClick}
+        isAdmin={isAdmin}
+      />
+
+      <main className="flex-grow max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-10 gap-8 w-full">
         <div className="lg:col-span-7">
-          <NewsSection /> 
+          <NewsSection category={category} isAdmin={isAdmin} />
         </div>
-
-        {/* [오른쪽 30%] 사이드바 부품 끼우기 */}
         <div className="lg:col-span-3">
           <Sidebar />
         </div>
-
       </main>
+
+      <Footer />
+
     </div>
   );
 }

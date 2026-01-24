@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ 페이지 이동 훅 추가
 import Widget from "./Widget";
 import ArticleForm from "./ArticleForm";
 
 export default function NewsSection({ category, isAdmin }) {
   const [articles, setArticles] = useState([]);
   const [isWriting, setIsWriting] = useState(false);
+  const navigate = useNavigate(); // ✅ 이동 함수 생성
 
-  // 1. 초기 더미 데이터 (8개 카테고리 랜덤 배정)
+  // 1. 초기 더미 데이터
   useEffect(() => {
     const categories = ["정치", "경제", "사회", "문화", "교육", "인터뷰칼럼", "경기도소식", "동영상"];
-    const initialData = Array(40).fill(null).map((_, i) => ({ 
+    const initialData = Array(40).fill(null).map((_, i) => ({
       id: i,
-      category: categories[i % categories.length], 
+      category: categories[i % categories.length],
       title: `${categories[i % categories.length]} 분야의 ${i+1}번째 주요 뉴스 헤드라인입니다`,
       desc: "이 기사는 메인 기사로 선정되었습니다. 클릭하면 상세 내용을 확인할 수 있으며, 이 부분은 기사의 요약문(Lead)이 들어가는 자리입니다.",
-      content: "<p>상세 내용입니다.</p>",
+      content: `<p>이곳은 <strong>${i+1}번째 기사</strong>의 상세 내용입니다.</p><p>내용이 아주 깁니다...</p>`,
       date: "2026.01.09",
       author: "김기자",
       img: `https://picsum.photos/400/300?random=${i}`
@@ -22,7 +24,6 @@ export default function NewsSection({ category, isAdmin }) {
     setArticles(initialData);
   }, []);
 
-  // 로그아웃 시 글쓰기 모드 종료
   useEffect(() => {
     if (!isAdmin) setIsWriting(false);
   }, [isAdmin]);
@@ -35,20 +36,23 @@ export default function NewsSection({ category, isAdmin }) {
   };
 
   const handleDeleteArticle = (e, id) => {
-    e.stopPropagation();
+    e.stopPropagation(); // 클릭 이벤트 전파 방지 (상세페이지 이동 막기)
     if(window.confirm("정말 이 기사를 삭제하시겠습니까?")) {
       setArticles(articles.filter(article => article.id !== id));
     }
   };
 
+  // ✅ [핵심] 상세 페이지로 이동하는 함수
+  const goDetail = (article) => {
+    navigate(`/article/${article.id}`, { state: { article } });
+  };
+
   // =================================================================
-  // 🔥 [핵심 변경] 그룹 위젯 (1개 크게 + 나머지 리스트)
+  // 그룹 위젯 (1개 크게 + 나머지 리스트)
   // =================================================================
   const GroupWidget = ({ title, targetCategories }) => {
-    // 1. 해당 카테고리 기사 필터링
     const filtered = articles.filter(a => targetCategories.includes(a.category));
-    
-    // 2. 데이터가 없으면 안내 문구
+
     if (filtered.length === 0) {
       return (
         <Widget title={title}>
@@ -59,21 +63,23 @@ export default function NewsSection({ category, isAdmin }) {
       );
     }
 
-    // 3. 첫 번째 기사 (메인) & 나머지 기사 (서브) 분리
-    const mainArticle = filtered[0];        // 1등 기사
-    const subArticles = filtered.slice(1, 5); // 2~5등 기사
+    const mainArticle = filtered[0];
+    const subArticles = filtered.slice(1, 5);
 
     return (
       <Widget title={title}>
         <div className="flex flex-col h-full">
-          
-          {/* A. 메인 기사 영역 (사진 + 큰 제목) */}
-          <div className="group cursor-pointer mb-5">
+
+          {/* ✅ 메인 기사 클릭 시 이동 */}
+          <div
+            onClick={() => goDetail(mainArticle)}
+            className="group cursor-pointer mb-5"
+          >
             <div className="w-full h-48 overflow-hidden rounded-xl mb-3 relative">
-              <img 
-                src={mainArticle.img} 
-                alt="main" 
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+              <img
+                src={mainArticle.img}
+                alt="main"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
               />
               <span className="absolute top-2 left-2 bg-blue-900 text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm">
                 {mainArticle.category}
@@ -87,16 +93,18 @@ export default function NewsSection({ category, isAdmin }) {
             </p>
           </div>
 
-          {/* B. 나머지 기사 리스트 (줄글) */}
+          {/* ✅ 서브 기사 리스트 클릭 시 이동 */}
           {subArticles.length > 0 && (
             <ul className="space-y-3 border-t border-gray-100 pt-3 mt-auto">
               {subArticles.map((sub) => (
-                <li key={sub.id} className="group flex items-start justify-between cursor-pointer">
+                <li
+                  key={sub.id}
+                  onClick={() => goDetail(sub)}
+                  className="group flex items-start justify-between cursor-pointer"
+                >
                   <span className="text-gray-700 text-sm group-hover:text-blue-600 group-hover:underline line-clamp-1 flex-1">
                     · {sub.title}
                   </span>
-                  {/* (옵션) 작성 시간 표시 */}
-                  {/* <span className="text-[10px] text-gray-300 ml-2 shrink-0">1시간 전</span> */}
                 </li>
               ))}
             </ul>
@@ -109,11 +117,11 @@ export default function NewsSection({ category, isAdmin }) {
 
 
   // =================================================================
-  // [화면 A] 카테고리별 전체 리스트 뷰 (정치, 경제 탭 클릭 시)
+  // 카테고리별 전체 리스트 뷰
   // =================================================================
   const CategoryListView = () => {
     const filteredArticles = category === "전체" ? articles : articles.filter(a => a.category === category);
-    const displayList = filteredArticles.length > 0 ? filteredArticles : articles; 
+    const displayList = filteredArticles.length > 0 ? filteredArticles : articles;
 
     return (
       <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
@@ -130,7 +138,12 @@ export default function NewsSection({ category, isAdmin }) {
         ) : (
           <div className="space-y-6">
             {displayList.map((news) => (
-              <div key={news.id} className="flex flex-col sm:flex-row gap-6 group cursor-pointer border-b border-gray-100 pb-6 last:border-0 hover:bg-gray-50/50 p-2 rounded-xl transition-colors">
+              // ✅ 리스트 아이템 클릭 시 이동
+              <div
+                key={news.id}
+                onClick={() => goDetail(news)}
+                className="flex flex-col sm:flex-row gap-6 group cursor-pointer border-b border-gray-100 pb-6 last:border-0 hover:bg-gray-50/50 p-2 rounded-xl transition-colors"
+              >
                 <div className="w-full sm:w-48 h-32 bg-gray-200 rounded-lg overflow-hidden shrink-0 relative">
                   <img src={news.img} alt="news" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   <span className="absolute top-2 left-2 bg-blue-600/90 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm">{news.category}</span>
@@ -159,32 +172,32 @@ export default function NewsSection({ category, isAdmin }) {
     );
   };
 
-  // =================================================================
-  // [화면 B] 메인 그리드 뷰
-  // =================================================================
   const MainGridView = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-[minmax(180px,auto)] animate-[fadeIn_0.3s_ease-out]">
-       
-       {/* 상단 헤드라인 위젯 */}
-       <Widget className="lg:col-span-2 min-h-[400px] flex flex-col justify-end relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gray-300 group-hover:scale-105 transition-transform duration-500">
-          <img src="https://picsum.photos/800/600" alt="headline" className="w-full h-full object-cover" />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-        <div className="relative z-10 text-white p-6">
-           <span className="bg-blue-600 text-xs font-bold px-2 py-1 rounded mb-3 inline-block">HEADLINE</span>
-           <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-3">NEWSPAPER 메인 레이아웃 개편</h2>
-           <p className="text-gray-200 text-lg line-clamp-2">이제 각 섹션의 중요 기사는 크게, 나머지 기사는 리스트로 한눈에 볼 수 있습니다.</p>
+
+       {/* 상단 헤드라인 위젯 (임시로 첫 번째 기사로 연결) */}
+       <Widget className="lg:col-span-2 min-h-[400px] flex flex-col justify-end relative overflow-hidden group cursor-pointer">
+        <div
+          onClick={() => goDetail(articles[0] || {})}
+          className="absolute inset-0 w-full h-full"
+        >
+          <div className="absolute inset-0 bg-gray-300 group-hover:scale-105 transition-transform duration-500">
+            <img src="https://picsum.photos/800/600" alt="headline" className="w-full h-full object-cover" />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+          <div className="relative z-10 text-white p-6">
+             <span className="bg-blue-600 text-xs font-bold px-2 py-1 rounded mb-3 inline-block">HEADLINE</span>
+             <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-3">NEWSPAPER 메인 레이아웃 개편</h2>
+             <p className="text-gray-200 text-lg line-clamp-2">이제 각 섹션의 중요 기사는 크게, 나머지 기사는 리스트로 한눈에 볼 수 있습니다.</p>
+          </div>
         </div>
       </Widget>
 
-      {/* ✅ 섹션별 그룹 위젯들 */}
       <GroupWidget title="정치 / 경제" targetCategories={["정치", "경제"]} />
       <GroupWidget title="사회 / 문화" targetCategories={["사회", "문화"]} />
       <GroupWidget title="교육" targetCategories={["교육"]} />
       <GroupWidget title="인터뷰 / 경기도소식" targetCategories={["인터뷰칼럼", "경기도소식"]} />
 
-      {/* 하단 광고 배너 */}
       <div className="lg:col-span-2 h-24 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-400 font-bold shadow-sm">
         하단 띠 배너 광고 영역
       </div>
