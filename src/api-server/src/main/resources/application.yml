@@ -19,7 +19,22 @@ spring:
       max-file-size: 30MB
       max-request-size: 30MB
 
-# MinIO (S3) 설정 (나중에 S3 라이브러리 추가하면 사용)
+  # 메일 설정 (네이버 IMAP용)
+  mail:
+    host: imap.naver.com
+    port: 993
+    username: your-naver-id@naver.com          # TODO: 실제 네이버 메일 주소로 변경
+    password: your-app-password                # TODO: 네이버에서 발급한 앱 비밀번호 사용
+    protocol: imaps
+    properties:
+      mail:
+        store:
+          protocol: imaps
+        imaps:
+          ssl:
+            enable: true
+
+# MinIO (S3) 설정
 cloud:
   aws:
     s3:

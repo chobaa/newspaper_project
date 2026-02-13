@@ -8,6 +8,7 @@ import java.util.List;
 public record ArticleResponse(
         Long id,
         String title,
+        String category,
         String content,
         String writer,
         LocalDateTime regDate,
@@ -22,6 +23,7 @@ public record ArticleResponse(
         return new ArticleResponse(
                 article.getId(),
                 article.getTitle(),
+                article.getCategory(),
                 article.getContent(),
                 article.getWriter(),
                 article.getRegDate(),
