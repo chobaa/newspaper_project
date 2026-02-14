@@ -1,6 +1,8 @@
 package com.newspaper.api_server.service;
 
+import com.newspaper.api_server.domain.MailProcessLog;
 import com.newspaper.api_server.dto.ArticleSaveRequest;
+import com.newspaper.api_server.dto.ScheduleDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,22 +12,16 @@ import software.amazon.awssdk.utils.IoUtils;
 import jakarta.mail.*;
 import jakarta.mail.Flags.Flag;
 import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.search.AndTerm;
-import jakarta.mail.search.FlagTerm;
-import jakarta.mail.search.SubjectTerm;
-import jakarta.mail.search.SearchTerm;
+import jakarta.mail.internet.MimeUtility;
+import jakarta.mail.search.*;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
 
 /**
- * 네이버 IMAP에서 [보도자료] 메일을 읽어와
- * - HWP 본문 파싱
- * - 이미지 업로드(MinIO)
- * - Article 엔티티 자동 생성
- * 까지 처리하는 AI 기자 에이전트의 핵심 서비스.
+ * Service to fetch emails and create articles using Gemini AI.
  */
 @Service
 @RequiredArgsConstructor
@@ -49,16 +45,31 @@ public class MailFetcherService {
     private final ArticleService articleService;
     private final AgentConfigService agentConfigService;
     private final AgentLogService agentLogService;
+    private final ScheduleService scheduleService;
+    private final GeminiService geminiService;
 
-    /**
-     * 네이버 메일에서 [보도자료] + 읽지 않은 메일을 찾아
-     * 기사로 변환하고 저장한다.
-     *
-     * @return 생성된 기사 개수
-     */
-    public int fetchAndCreateArticles() {
-        agentLogService.append("메일 가져오기 시작");
-        int createdCount = 0;
+    public ScheduleDto.FetchResultResponse fetchAndCreateArticles() {
+        ScheduleDto.ScheduleConfigResponse config = scheduleService.getScheduleConfig();
+        return fetchAndCreateArticles(config.manualFetchCount(), false);
+    }
+
+    public ScheduleDto.FetchResultResponse fetchAndCreateArticlesAuto() {
+        ScheduleDto.ScheduleConfigResponse config = scheduleService.getScheduleConfig();
+        if (!config.autoScheduleEnabled()) {
+            return new ScheduleDto.FetchResultResponse(0, 0, 0, Collections.emptyList());
+        }
+        return fetchAndCreateArticles(config.autoFetchCount(), true);
+    }
+
+    private ScheduleDto.FetchResultResponse fetchAndCreateArticles(int maxCount, boolean isAuto) {
+        String mode = isAuto ? "AUTO" : "MANUAL";
+        log.info("Starting mail fetch. Mode: {}, MaxCount: {}", mode, maxCount);
+        agentLogService.append("Fetch started [" + mode + "]");
+
+        List<ScheduleDto.MailProcessLogResponse> processLogs = new ArrayList<>();
+        int successCount = 0;
+        int failureCount = 0;
+        LocalDateTime latestMailDate = null;
 
         Properties props = new Properties();
         props.put("mail.store.protocol", "imaps");
@@ -66,181 +77,232 @@ public class MailFetcherService {
         props.put("mail.imaps.port", String.valueOf(port));
         props.put("mail.imaps.ssl.enable", "true");
 
-        Session session = Session.getInstance(props);
-
-        try (Store store = session.getStore("imaps")) {
+        try (Store store = Session.getInstance(props).getStore("imaps")) {
             store.connect(host, username, password);
-
             Folder inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_WRITE);
 
-            // 읽지 않은 + 제목에 [보도자료]가 포함된 메일만 검색
-            FlagTerm unseen = new FlagTerm(new Flags(Flag.SEEN), false);
-            SubjectTerm subjectTerm = new SubjectTerm("[보도자료]");
-            SearchTerm searchTerm = new AndTerm(unseen, subjectTerm);
+            SearchTerm searchTerm = new SubjectTerm("[보도자료]");
+            ScheduleDto.ScheduleConfigResponse config = scheduleService.getScheduleConfig();
+            if (config.lastFetchedMailDate() != null) {
+                Date lastDate = Date.from(config.lastFetchedMailDate().atZone(ZoneId.systemDefault()).toInstant());
+                searchTerm = new AndTerm(searchTerm, new ReceivedDateTerm(ComparisonTerm.GT, lastDate));
+            }
 
             Message[] messages = inbox.search(searchTerm);
-
-            log.info("AI Reporter: 발견된 대상 메일 수 = {}", messages.length);
-            agentLogService.append("발견된 대상 메일 수 = " + messages.length);
-
-            for (Message message : messages) {
+            Arrays.sort(messages, Comparator.comparing(m -> {
                 try {
-                    createdCount += handleMessage(message);
-                    // 처리 완료 후 읽은 메일로 표시
-                    message.setFlag(Flag.SEEN, true);
+                    return m.getReceivedDate();
                 } catch (Exception e) {
-                    log.error("메일 처리 중 오류가 발생했습니다. subject={}", safeSubject(message), e);
-                    agentLogService.append("메일 처리 오류: " + safeSubject(message) + " - " + e.getMessage());
+                    return new Date(0);
+                }
+            }));
+
+            int processCount = Math.min(messages.length, maxCount);
+            for (int i = 0; i < processCount; i++) {
+                Message msg = messages[i];
+                MailProcessResult result = handleMessageWithLog(msg);
+                processLogs.add(result.logResponse);
+                if (result.success) {
+                    successCount++;
+                    msg.setFlag(Flag.SEEN, true);
+                } else {
+                    failureCount++;
+                }
+                if (result.receivedDate != null
+                        && (latestMailDate == null || result.receivedDate.isAfter(latestMailDate))) {
+                    latestMailDate = result.receivedDate;
                 }
             }
-
             inbox.close(true);
-            store.close();
+            if (latestMailDate != null)
+                scheduleService.updateLastFetchedMailDate(latestMailDate);
         } catch (Exception e) {
-            log.error("IMAP 연결 또는 메일 조회 중 오류가 발생했습니다.", e);
-            agentLogService.append("오류: " + e.getMessage());
+            log.error("IMAP error", e);
+            agentLogService.append("IMAP Error: " + e.getMessage());
         }
 
-        agentLogService.append("완료: " + createdCount + "개 기사 생성/수정");
-        return createdCount;
+        return new ScheduleDto.FetchResultResponse(processLogs.size(), successCount, failureCount, processLogs);
     }
 
-    private int handleMessage(Message message) throws Exception {
-        String subject = message.getSubject();
-        if (subject == null || !subject.contains("[보도자료]")) {
-            return 0;
+    private MailProcessResult handleMessageWithLog(Message message) {
+        String subject = safeSubject(message);
+        String senderEmail = null;
+        LocalDateTime receivedDate = null;
+        Long articleId = null;
+        String errorMessage = null;
+        boolean success = false;
+        MailProcessLog processLog = null;
+
+        try {
+            senderEmail = extractSenderEmail(message);
+            Date rcvDate = message.getReceivedDate();
+            receivedDate = (rcvDate != null) ? LocalDateTime.ofInstant(rcvDate.toInstant(), ZoneId.systemDefault())
+                    : LocalDateTime.now();
+            processLog = scheduleService.saveMailProcessLog(subject, senderEmail, receivedDate, false, null, null);
+            articleId = handleMessage(message, processLog);
+            success = (articleId != null);
+        } catch (Exception e) {
+            log.error("Process error: {}", subject, e);
+            errorMessage = e.getMessage();
         }
 
-        // 1차 필터: 보낸사람 화이트리스트 (리스트가 비어 있으면 전체 허용)
+        if (processLog != null) {
+            processLog.setSuccess(success);
+            processLog.setErrorMessage(errorMessage);
+            processLog.setArticleId(articleId);
+            scheduleService.saveExistingLog(processLog);
+
+            ScheduleDto.MailProcessLogResponse logRes = new ScheduleDto.MailProcessLogResponse(
+                    processLog.getId(), subject, senderEmail, receivedDate, LocalDateTime.now(),
+                    success, errorMessage, articleId,
+                    processLog.getAttachments(), processLog.getHwpFileName(), processLog.getImageFileNames());
+
+            return new MailProcessResult(success, receivedDate, logRes);
+        } else {
+            // Fallback if processLog failed to create
+            ScheduleDto.MailProcessLogResponse logRes = new ScheduleDto.MailProcessLogResponse(
+                    null, subject, senderEmail, receivedDate, LocalDateTime.now(),
+                    success, errorMessage, articleId,
+                    Collections.emptyList(), null, Collections.emptyList());
+            return new MailProcessResult(success, receivedDate, logRes);
+        }
+    }
+
+    private Long handleMessage(Message message, MailProcessLog processLog) throws Exception {
+        String subject = message.getSubject();
+
+        // Use agentConfigService for filtering
         List<String> allowedSenders = agentConfigService.getAllowedSenderEmails();
+        String senderEmail = extractSenderEmail(message);
         if (!allowedSenders.isEmpty()) {
-            String senderEmail = extractSenderEmail(message);
-            if (senderEmail == null || !allowedSenders.stream().anyMatch(s -> s.equalsIgnoreCase(senderEmail))) {
-                log.debug("AI Reporter: 보낸사람 미등록으로 스킵. from={}", senderEmail);
-                return 0;
+            if (senderEmail == null || allowedSenders.stream().noneMatch(s -> s.equalsIgnoreCase(senderEmail))) {
+                return null;
             }
         }
 
-        String contentText = null;
+        String mailBodyText = extractMailBodyText(message);
+        String extractedText = null;
         List<String> imageUrls = new ArrayList<>();
 
         Object content = message.getContent();
-
-        if (content instanceof Multipart multipart) {
-            for (int i = 0; i < multipart.getCount(); i++) {
-                BodyPart part = multipart.getBodyPart(i);
-
-                String disposition = part.getDisposition();
-                String fileName = part.getFileName();
-
-                boolean isAttachment = Part.ATTACHMENT.equalsIgnoreCase(disposition) || fileName != null;
-                if (!isAttachment) {
-                    continue;
-                }
-
+        if (content instanceof Multipart) {
+            List<BodyPart> parts = new ArrayList<>();
+            collectAttachmentParts(message, parts);
+            for (BodyPart part : parts) {
+                String fileName = decodeFileName(part.getFileName());
+                if (fileName != null && processLog != null)
+                    processLog.addAttachment(fileName);
                 try (InputStream is = part.getInputStream()) {
-                    String lowerName = fileName != null ? fileName.toLowerCase() : "";
-
-                    if (lowerName.endsWith(".hwp")) {
-                        contentText = hwpParsingService.extractText(is);
+                    String lower = (fileName != null) ? fileName.toLowerCase() : "";
+                    if (lower.endsWith(".hwp") || lower.endsWith(".hwpx")) {
+                        extractedText = hwpParsingService.extractText(is);
+                        if (processLog != null)
+                            processLog.setHwpFileName(fileName);
                     } else if (isImageAttachment(part)) {
-                        byte[] bytes = IoUtils.toByteArray(is);
-                        String contentType = part.getContentType();
-                        String url = imageService.uploadImage(bytes, fileName, contentType);
+                        String url = imageService.uploadImage(IoUtils.toByteArray(is), fileName, part.getContentType());
                         imageUrls.add(url);
+                        if (processLog != null)
+                            processLog.addImageFileName(fileName);
                     }
                 }
             }
-        } else if (content instanceof String textContent) {
-            contentText = textContent;
+        } else if (content instanceof String s) {
+            mailBodyText = s;
         }
 
-        if (contentText == null || contentText.isBlank()) {
-            log.warn("보도자료 메일이지만 본문 텍스트를 추출하지 못했습니다. subject={}", subject);
-            agentLogService.append("본문 추출 실패: " + (subject != null ? subject.substring(0, Math.min(50, subject.length())) : ""));
-            return 0;
-        }
+        if ((extractedText == null || extractedText.isBlank()) && (mailBodyText == null || mailBodyText.isBlank()))
+            return null;
 
-        // 수정요청 키워드 확인: [수정배포], [정정요청], [보도자료 정정요청] 등
-        List<String> modKeywords = agentConfigService.getModificationKeywordsList();
-        String matchingKeyword = modKeywords.stream()
-                .filter(subject::contains)
-                .findFirst()
-                .orElse(null);
+        // Get default writer from config
+        ScheduleDto.ScheduleConfigResponse config = scheduleService.getScheduleConfig();
+        String reporterName = (config.defaultWriter() != null) ? config.defaultWriter() : "AI Reporter";
 
-        if (matchingKeyword != null) {
-            // 수정요청: 기존 기사 찾아 본문만 갱신
-            String originalTitle = subject
-                    .replace("[보도자료]", "")
-                    .replace(matchingKeyword, "")
-                    .trim();
-            if (originalTitle.isBlank()) {
-                log.warn("AI Reporter: 수정요청 메일이지만 원본 제목을 추출하지 못했습니다. subject={}", subject);
-                return 0;
+        // Gemini AI is MANDATORY now
+        if (geminiService.isAvailable()) {
+            GeminiService.ArticleResult ai = geminiService.generateArticle(subject, mailBodyText, extractedText,
+                    imageUrls, "400px");
+            if (ai != null) {
+                return articleService.saveArticle(
+                        new ArticleSaveRequest(ai.title(), ai.category(), ai.content(), reporterName, imageUrls));
+            } else {
+                throw new RuntimeException("Gemini failed to generate article result");
             }
-
-            final String finalContent = contentText;
-            return articleService.findFirstByTitleContainingOrderByIdDesc(originalTitle)
-                    .map(article -> {
-                        articleService.updateContent(article.getId(), finalContent);
-                        log.info("AI Reporter: 기사 수정 완료. articleId={}, title={}", article.getId(), originalTitle);
-                        agentLogService.append("기사 수정: " + originalTitle);
-                        return 1;
-                    })
-                    .orElseGet(() -> {
-                        log.warn("AI Reporter: 수정 대상 기사를 찾지 못했습니다. titlePart={}", originalTitle);
-                        return 0;
-                    });
+        } else {
+            throw new RuntimeException("Gemini AI is not available (Check API Key)");
         }
-
-        // 신규 기사 생성
-        String title = subject.replace("[보도자료]", "").trim();
-        ArticleSaveRequest request = new ArticleSaveRequest(
-                title,
-                "보도자료",
-                contentText,
-                "AI Reporter",
-                imageUrls
-        );
-
-        Long articleId = articleService.saveArticle(request);
-        log.info("AI Reporter: 메일로부터 기사 생성 완료. articleId={}", articleId);
-        agentLogService.append("기사 생성: " + title);
-        return 1;
     }
 
-    private String extractSenderEmail(Message message) throws MessagingException {
-        Address[] from = message.getFrom();
-        if (from == null || from.length == 0) return null;
-        Address addr = from[0];
-        if (addr instanceof InternetAddress ia) {
-            return ia.getAddress();
+    private String extractMailBodyText(Part part) throws Exception {
+        Object content = part.getContent();
+        if (content instanceof String s) {
+            String ct = part.getContentType().toLowerCase();
+            if (ct.contains("text/html"))
+                return s.replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ").replaceAll("\\s+", " ").trim();
+            return s;
+        } else if (content instanceof Multipart mp) {
+            String p = null;
+            String h = null;
+            for (int i = 0; i < mp.getCount(); i++) {
+                BodyPart bp = mp.getBodyPart(i);
+                if (Part.ATTACHMENT.equalsIgnoreCase(bp.getDisposition()))
+                    continue;
+                String r = extractMailBodyText(bp);
+                if (bp.getContentType().toLowerCase().contains("text/plain"))
+                    p = r;
+                else
+                    h = r;
+            }
+            return (p != null) ? p : h;
         }
-        return addr.toString();
+        return null;
     }
 
-    private boolean isImageAttachment(BodyPart part) throws MessagingException {
-        String contentType = part.getContentType();
-        if (contentType != null && contentType.toLowerCase().startsWith("image/")) {
-            return true;
+    private void collectAttachmentParts(Part part, List<BodyPart> res) throws Exception {
+        if (part.getContent() instanceof Multipart mp) {
+            for (int i = 0; i < mp.getCount(); i++) {
+                BodyPart bp = mp.getBodyPart(i);
+                if (Part.ATTACHMENT.equalsIgnoreCase(bp.getDisposition()) || bp.getFileName() != null)
+                    res.add(bp);
+                if (bp.getContent() instanceof Multipart)
+                    collectAttachmentParts(bp, res);
+            }
         }
-
-        String fileName = part.getFileName();
-        if (fileName == null) return false;
-
-        String lower = fileName.toLowerCase();
-        return lower.endsWith(".jpg") || lower.endsWith(".jpeg")
-                || lower.endsWith(".png") || lower.endsWith(".gif")
-                || lower.endsWith(".bmp") || lower.endsWith(".webp");
     }
 
-    private String safeSubject(Message message) {
+    private String decodeFileName(String f) {
         try {
-            return message.getSubject();
-        } catch (MessagingException e) {
-            return "unknown";
+            return (f != null) ? MimeUtility.decodeText(f) : null;
+        } catch (Exception e) {
+            return f;
         }
+    }
+
+    private String extractSenderEmail(Message m) throws Exception {
+        Address[] from = m.getFrom();
+        if (from == null || from.length == 0)
+            return null;
+        return (from[0] instanceof InternetAddress ia) ? ia.getAddress() : from[0].toString();
+    }
+
+    private boolean isImageAttachment(BodyPart p) throws Exception {
+        String ct = p.getContentType();
+        if (ct != null && ct.toLowerCase().startsWith("image/"))
+            return true;
+        String f = (p.getFileName() != null) ? p.getFileName().toLowerCase() : "";
+        return f.endsWith(".jpg") || f.endsWith(".jpeg") || f.endsWith(".png") || f.endsWith(".gif")
+                || f.endsWith(".webp");
+    }
+
+    private String safeSubject(Message m) {
+        try {
+            return m.getSubject();
+        } catch (Exception e) {
+            return "No Subject";
+        }
+    }
+
+    private record MailProcessResult(boolean success, LocalDateTime receivedDate,
+            ScheduleDto.MailProcessLogResponse logResponse) {
     }
 }
-

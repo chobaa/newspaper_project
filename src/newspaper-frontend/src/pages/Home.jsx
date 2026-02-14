@@ -4,7 +4,7 @@ import NewsSection from "../components/NewsSection";
 import Sidebar from "../components/Sidebar";
 import LoginModal from "../components/LoginModal";
 import Footer from "../components/Footer";
-import AgentConfigPanel from "../components/AgentConfigPanel";
+import AdminPanel from "../components/AdminPanel";
 
 export default function Home() {
   const [category, setCategory] = useState("전체");
@@ -13,7 +13,7 @@ export default function Home() {
 
   const handleLoginClick = () => {
     if (isAdmin) {
-      if(window.confirm("로그아웃 하시겠습니까?")) setIsAdmin(false);
+      if (window.confirm("로그아웃 하시겠습니까?")) setIsAdmin(false);
     } else {
       setIsLoginModalOpen(true);
     }
@@ -36,8 +36,8 @@ export default function Home() {
 
       <main className="flex-grow max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-10 gap-8 w-full">
         <div className="lg:col-span-7">
-          {category === "에이전트 설정" && isAdmin ? (
-            <AgentConfigPanel />
+          {category === "관리자" && isAdmin ? (
+            <AdminPanel />
           ) : (
             <NewsSection category={category} isAdmin={isAdmin} />
           )}

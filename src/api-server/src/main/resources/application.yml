@@ -1,35 +1,30 @@
-spring:
-  # .env 파일을 추가 설정 소스로 읽어오기 (루트에 .env 두면 됨)
-  config:
-    import: "optional:file:.env[.properties]"
+server:
+  port: 8080
 
+spring:
+  application:
+    name: api-server
+  
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}  # 기본값은 docker-compose 기준, 실제 운영/테스트는 .env에서 오버라이드
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update  # 개발용: Entity를 수정하면 DB 테이블도 자동으로 고쳐줌 (편함)
+      ddl-auto: update
+    show-sql: true
     properties:
       hibernate:
-        format_sql: true # 실행되는 SQL을 예쁘게 보여줌
-        show_sql: true   # 실행되는 SQL을 로그에 찍음
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
 
-  # 파일 업로드 용량 제한 (사진 많이 올리니까 넉넉하게)
-  servlet:
-    multipart:
-      max-file-size: 30MB
-      max-request-size: 30MB
-
-  # 메일 설정 (네이버 IMAP용) - .env에서 관리, 비어있으면 에이전트 실행 시 실패
   mail:
     host: ${MAIL_HOST:imap.naver.com}
     port: ${MAIL_PORT:993}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    protocol: imaps
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         store:
@@ -37,17 +32,27 @@ spring:
         imaps:
           ssl:
             enable: true
+            trust: "*"
 
-# MinIO (S3) 설정
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
 cloud:
   aws:
-    s3:
-      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-      bucket: ${MINIO_BUCKET:newspaper-bucket}
     credentials:
       access-key: ${MINIO_ACCESS_KEY:minioadmin}
       secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    s3:
+      endpoint: ${CLOUD_AWS_S3_ENDPOINT:http://localhost:9000}
+      bucket: ${MINIO_BUCKET:newspaper-bucket}
     region:
-      static: ${MINIO_REGION:us-east-1} # MinIO는 리전 무관하지만 형식상 필요
+      static: ${MINIO_REGION:us-east-1}
     stack:
       auto: false
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+  enabled: ${GEMINI_ENABLED:true}
