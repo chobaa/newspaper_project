@@ -1,8 +1,12 @@
 spring:
+  # .env 파일을 추가 설정 소스로 읽어오기 (루트에 .env 두면 됨)
+  config:
+    import: "optional:file:.env[.properties]"
+
   datasource:
-    url: jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
-    password: root  # docker-compose에서 설정한 비번
+    url: ${DB_URL:jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}  # 기본값은 docker-compose 기준, 실제 운영/테스트는 .env에서 오버라이드
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -19,12 +23,12 @@ spring:
       max-file-size: 30MB
       max-request-size: 30MB
 
-  # 메일 설정 (네이버 IMAP용)
+  # 메일 설정 (네이버 IMAP용) - .env에서 관리, 비어있으면 에이전트 실행 시 실패
   mail:
-    host: imap.naver.com
-    port: 993
-    username: your-naver-id@naver.com          # TODO: 실제 네이버 메일 주소로 변경
-    password: your-app-password                # TODO: 네이버에서 발급한 앱 비밀번호 사용
+    host: ${MAIL_HOST:imap.naver.com}
+    port: ${MAIL_PORT:993}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     protocol: imaps
     properties:
       mail:
@@ -38,12 +42,12 @@ spring:
 cloud:
   aws:
     s3:
-      endpoint: http://localhost:9000
-      bucket: newspaper-bucket
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      bucket: ${MINIO_BUCKET:newspaper-bucket}
     credentials:
-      access-key: minioadmin
-      secret-key: minioadmin
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
     region:
-      static: us-east-1 # MinIO는 리전 무관하지만 형식상 필요
+      static: ${MINIO_REGION:us-east-1} # MinIO는 리전 무관하지만 형식상 필요
     stack:
       auto: false

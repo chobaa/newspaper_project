@@ -47,4 +47,8 @@ public class Article {
     public void increaseViewCount() {
         this.viewcount++;
     }
+
+    public void updateContent(String newContent) {
+        this.content = newContent;
+    }
 }
