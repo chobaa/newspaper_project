@@ -100,6 +100,16 @@ public class MailFetcherService {
 
             int processCount = Math.min(messages.length, maxCount);
             for (int i = 0; i < processCount; i++) {
+                // Gemini API Rate Limit 방지를 위해 2번째 루프부터 지연 추가 (초당 요청 제한 방어)
+                if (i > 0 && geminiService.isAvailable()) {
+                    try {
+                        log.info("Gemini Rate Limit 방지를 위해 잠시 대기 중... (4초)");
+                        Thread.sleep(4000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+
                 Message msg = messages[i];
                 MailProcessResult result = handleMessageWithLog(msg);
                 processLogs.add(result.logResponse);
@@ -226,10 +236,11 @@ public class MailFetcherService {
                 return articleService.saveArticle(
                         new ArticleSaveRequest(ai.title(), ai.category(), ai.content(), reporterName, imageUrls));
             } else {
-                throw new RuntimeException("Gemini failed to generate article result");
+                throw new RuntimeException(
+                        "Gemini returned null result (Check logs for safety blocks or parsing errors)");
             }
         } else {
-            throw new RuntimeException("Gemini AI is not available (Check API Key)");
+            throw new RuntimeException("Gemini AI is not configured (API Key missing or disabled)");
         }
     }
 

@@ -91,20 +91,61 @@ public class GeminiService {
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))),
                 "generationConfig", Map.of("temperature", 0.2, "responseMimeType", "application/json"));
-        return webClient.post().uri(url).contentType(MediaType.APPLICATION_JSON).bodyValue(body)
-                .retrieve().bodyToMono(String.class).block();
+
+        log.info("Gemini API Request (model: {})", model);
+        try {
+            String response = webClient.post().uri(url)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+            log.debug("Gemini API Response Success");
+            return response;
+        } catch (Exception e) {
+            log.error("Gemini API Call Failed: {}", e.getMessage());
+            throw e;
+        }
     }
 
     private ArticleResult parseResponse(String body, String fallback) {
         try {
             JsonNode root = objectMapper.readTree(body);
-            String text = root.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+
+            // Check for safety ratings or errors in response
+            if (root.has("error")) {
+                log.error("Gemini API returned error: {}", root.path("error").path("message").asText());
+                return null;
+            }
+
+            JsonNode candidates = root.path("candidates");
+            if (candidates.isEmpty()) {
+                log.error("Gemini API response has no candidates. Likely blocked by safety filters or empty response.");
+                log.debug("Full Response: {}", body);
+                return null;
+            }
+
+            String text = candidates.get(0).path("content").path("parts").get(0).path("text").asText();
+            if (text == null || text.isBlank()) {
+                log.error("Gemini API returned empty text parts.");
+                return null;
+            }
+
             String jsonText = text.replace("```json", "").replace("```", "").trim();
             JsonNode res = objectMapper.readTree(jsonText);
-            return new ArticleResult(res.path("title").asText(fallback), res.path("category").asText("Press"),
-                    res.path("content").asText(""));
+
+            String title = res.path("title").asText(fallback);
+            String category = res.path("category").asText("\uBCF4\uB3C4\uC790\uB8CC");
+            String content = res.path("content").asText("");
+
+            if (content.isBlank()) {
+                log.warn("Gemini generated empty content for article: {}", title);
+            }
+
+            return new ArticleResult(title, category, content);
         } catch (Exception e) {
-            log.error("Parse Error", e);
+            log.error("Gemini Response Parse Error: {}", e.getMessage());
+            log.debug("Raw Response Body: {}", body);
             return null;
         }
     }

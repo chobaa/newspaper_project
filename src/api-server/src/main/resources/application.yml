@@ -56,3 +56,7 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:gemini-2.0-flash}
   enabled: ${GEMINI_ENABLED:true}
+
+logging:
+  level:
+    com.newspaper.api_server.service.GeminiService: DEBUG
