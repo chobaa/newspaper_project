@@ -32,11 +32,17 @@ dependencies {
 	// 3. AWS S3 (이미지 업로드용)
 	implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3:3.1.1'
 
-	// 4. 유틸리티 (Lombok)
+	// 4. 메일 (IMAP / SMTP)
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+	// 5. HWP 파싱 (보도자료 텍스트 추출용)
+	implementation 'kr.dogfoot:hwplib:1.1.4'
+
+	// 6. 유틸리티 (Lombok)
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
-	// 5. 테스트
+	// 7. 테스트
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

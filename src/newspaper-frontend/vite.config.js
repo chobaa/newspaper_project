@@ -9,12 +9,13 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
-      proxy: {
-        '/api': {
-          target: 'http://localhost:8080',
-          changeOrigin: true,
-          secure: false,
-        }
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+        timeout: 60000, // 백엔드가 느리게 뜰 때 대기 (60초)
       }
     }
+  }
 })

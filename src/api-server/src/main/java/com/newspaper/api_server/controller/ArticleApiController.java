@@ -6,6 +6,8 @@ import com.newspaper.api_server.service.ArticleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 public class ArticleApiController {
@@ -18,9 +20,21 @@ public class ArticleApiController {
         return articleService.saveArticle(request);
     }
 
+    // 전체 기사 목록 조회
+    @GetMapping("/api/articles")
+    public List<ArticleResponse> findAll() {
+        return articleService.getArticles();
+    }
+
     // 기사 조회 (조회수 증가)
     @GetMapping("/api/articles/{id}")
     public ArticleResponse findById(@PathVariable Long id) {
         return articleService.getArticle(id);
+    }
+
+    // 기사 삭제
+    @DeleteMapping("/api/articles/{id}")
+    public void delete(@PathVariable Long id) {
+        articleService.deleteArticle(id);
     }
 }

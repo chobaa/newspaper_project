@@ -20,6 +20,7 @@ public class ArticleService {
     public Long saveArticle(ArticleSaveRequest request) {
         Article article = new Article(
                 request.title(),
+                request.category(),
                 request.content(),
                 request.writer()
         );
@@ -38,7 +39,16 @@ public class ArticleService {
         return articleRepository.save(article).getId();
     }
 
-    // 2. 기사 상세 조회 (조회수 증가 포함)
+    // 2. 전체 기사 목록 조회 (최신순)
+    @Transactional(readOnly = true)
+    public java.util.List<ArticleResponse> getArticles() {
+        return articleRepository.findAllByOrderByIdDesc()
+                .stream()
+                .map(ArticleResponse::from)
+                .toList();
+    }
+
+    // 3. 기사 상세 조회 (조회수 증가 포함)
     @Transactional
     public ArticleResponse getArticle(Long id) {
         Article article = articleRepository.findById(id)
@@ -48,5 +58,25 @@ public class ArticleService {
         article.increaseViewCount();
 
         return ArticleResponse.from(article);
+    }
+
+    // 4. 기사 삭제
+    @Transactional
+    public void deleteArticle(Long id) {
+        articleRepository.deleteById(id);
+    }
+
+    // 5. 기사 본문만 수정 (수정요청 메일 처리용)
+    @Transactional
+    public void updateContent(Long id, String newContent) {
+        Article article = articleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
+        article.updateContent(newContent);
+    }
+
+    // 6. 제목 포함 검색 (수정요청 매칭용)
+    @Transactional(readOnly = true)
+    public java.util.Optional<Article> findFirstByTitleContainingOrderByIdDesc(String titlePart) {
+        return articleRepository.findFirstByTitleContainingOrderByIdDesc(titlePart);
     }
 }

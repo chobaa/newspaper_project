@@ -8,38 +8,104 @@ export default function NewsSection({ category, isAdmin }) {
   const [isWriting, setIsWriting] = useState(false);
   const navigate = useNavigate(); // ✅ 이동 함수 생성
 
-  // 1. 초기 더미 데이터
   useEffect(() => {
-    const categories = ["정치", "경제", "사회", "문화", "교육", "인터뷰칼럼", "경기도소식", "동영상"];
-    const initialData = Array(40).fill(null).map((_, i) => ({
-      id: i,
-      category: categories[i % categories.length],
-      title: `${categories[i % categories.length]} 분야의 ${i+1}번째 주요 뉴스 헤드라인입니다`,
-      desc: "이 기사는 메인 기사로 선정되었습니다. 클릭하면 상세 내용을 확인할 수 있으며, 이 부분은 기사의 요약문(Lead)이 들어가는 자리입니다.",
-      content: `<p>이곳은 <strong>${i+1}번째 기사</strong>의 상세 내용입니다.</p><p>내용이 아주 깁니다...</p>`,
-      date: "2026.01.09",
-      author: "김기자",
-      img: `https://picsum.photos/400/300?random=${i}`
-    }));
-    setArticles(initialData);
+    // 백엔드에서 실제 기사 목록 불러오기
+    const fetchArticles = async () => {
+      try {
+        const res = await fetch("/api/articles");
+        if (!res.ok) {
+          throw new Error("기사 목록을 불러오지 못했습니다.");
+        }
+        const data = await res.json();
+        const mapped = data.map((a) => {
+          const plainText = a.content ? a.content.replace(/<[^>]+>/g, "") : "";
+          const desc =
+            plainText.length > 0
+              ? plainText.slice(0, 100) + (plainText.length > 100 ? "..." : "")
+              : "";
+          const firstImage = a.imageUrls && a.imageUrls.length > 0 ? a.imageUrls[0] : `https://picsum.photos/400/300?random=${a.id}`;
+          const dateStr = a.regDate ? a.regDate.substring(0, 10) : "";
+          return {
+            id: a.id,
+            category: a.category || "정치",
+            title: a.title,
+            desc,
+            content: a.content,
+            date: dateStr,
+            author: a.writer || "기자",
+            img: firstImage,
+          };
+        });
+        setArticles(mapped);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    fetchArticles();
   }, []);
 
   useEffect(() => {
     if (!isAdmin) setIsWriting(false);
   }, [isAdmin]);
 
-  const handleSaveArticle = (newArticle) => {
-    const articleWithId = { ...newArticle, id: Date.now() };
-    setArticles([articleWithId, ...articles]);
-    setIsWriting(false);
-    alert("기사가 성공적으로 발행되었습니다! 🎉");
+  // 본문 내용에서 이미지 src 추출
+  const extractImageUrlsFromContent = (html) => {
+    const regex = /<img[^>]+src="([^">]+)"/g;
+    const urls = [];
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      urls.push(match[1]);
+    }
+    return urls;
+  };
+
+  const handleSaveArticle = async (newArticle) => {
+    try {
+      const imageUrls = extractImageUrlsFromContent(newArticle.content);
+
+      const res = await fetch("/api/articles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: newArticle.title,
+          category: newArticle.category,
+          content: newArticle.content,
+          writer: newArticle.author,
+          imageUrls,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("기사 저장에 실패했습니다.");
+      }
+
+      const newId = await res.json();
+      const savedArticle = { ...newArticle, id: newId };
+
+      setArticles((prev) => [savedArticle, ...prev]);
+      setIsWriting(false);
+      alert("기사가 성공적으로 발행되었습니다!");
+    } catch (e) {
+      console.error(e);
+      alert("기사 저장 중 오류가 발생했습니다.");
+    }
   };
 
   const handleDeleteArticle = (e, id) => {
     e.stopPropagation(); // 클릭 이벤트 전파 방지 (상세페이지 이동 막기)
-    if(window.confirm("정말 이 기사를 삭제하시겠습니까?")) {
-      setArticles(articles.filter(article => article.id !== id));
-    }
+    if (!window.confirm("정말 이 기사를 삭제하시겠습니까?")) return;
+
+    // 백엔드 삭제 호출 후 상태에서도 제거
+    fetch(`/api/articles/${id}`, {
+      method: "DELETE",
+    })
+      .catch((err) => console.error(err))
+      .finally(() => {
+        setArticles((prev) => prev.filter((article) => article.id !== id));
+      });
   };
 
   // ✅ [핵심] 상세 페이지로 이동하는 함수

@@ -28,7 +28,7 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin }) {
             </h1>
           </div>
 
-          {/* 중앙: 네비게이션 메뉴 (8개) */}
+          {/* 중앙: 네비게이션 메뉴 (8개) + 관리자 전용 에이전트 설정 */}
           <nav className="hidden md:flex items-center space-x-1">
             {menus.map((menu) => (
               <button 
@@ -39,6 +39,14 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin }) {
                 {menu}
               </button>
             ))}
+            {isAdmin && (
+              <button 
+                onClick={() => onSelectCategory("에이전트 설정")}
+                className="px-3 py-2 rounded-full text-gray-600 font-medium transition-all hover:bg-gray-100 hover:text-blue-700 text-sm lg:text-base whitespace-nowrap border border-blue-200 bg-blue-50/50"
+              >
+                에이전트 설정
+              </button>
+            )}
           </nav>
         </div>
 

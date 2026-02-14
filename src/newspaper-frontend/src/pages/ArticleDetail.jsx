@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getDisplaySettings } from '../utils/displaySettings';
 
-// 1. 공통 레이아웃 컴포넌트 가져오기
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import Footer from '../components/Footer';
@@ -9,6 +9,7 @@ import Footer from '../components/Footer';
 export default function ArticleDetail() {
   const location = useLocation();
   const navigate = useNavigate();
+  const display = getDisplaySettings();
 
   // 목록에서 넘겨준 기사 데이터 받기
   const article = location.state?.article;
@@ -117,10 +118,15 @@ export default function ArticleDetail() {
       {/* 3. 푸터 */}
       <Footer />
 
-      {/* 스타일링 */}
+      {/* 스타일링 (관리자 페이지에서 설정한 글꼴/크기/이미지/줄간격 적용) */}
       <style>{`
+        .article-content {
+          font-family: ${display.fontFamily};
+          font-size: ${display.fontSize};
+          line-height: ${display.lineHeight};
+        }
         .article-content img {
-          max-width: 100%;
+          max-width: ${display.imageMaxWidth};
           height: auto;
           margin: 20px auto;
           border-radius: 8px;
@@ -129,8 +135,8 @@ export default function ArticleDetail() {
         }
         .article-content p {
           margin-bottom: 1.2rem;
-          line-height: 1.8;
-          font-size: 1.125rem;
+          line-height: ${display.lineHeight};
+          font-size: ${display.fontSize};
           color: #374151;
         }
         .article-content h1, .article-content h2, .article-content h3 {

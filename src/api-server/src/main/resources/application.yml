@@ -1,8 +1,12 @@
 spring:
+  # .env 파일을 추가 설정 소스로 읽어오기 (루트에 .env 두면 됨)
+  config:
+    import: "optional:file:.env[.properties]"
+
   datasource:
-    url: jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
-    password: root  # docker-compose에서 설정한 비번
+    url: ${DB_URL:jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}  # 기본값은 docker-compose 기준, 실제 운영/테스트는 .env에서 오버라이드
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -19,16 +23,31 @@ spring:
       max-file-size: 30MB
       max-request-size: 30MB
 
-# MinIO (S3) 설정 (나중에 S3 라이브러리 추가하면 사용)
+  # 메일 설정 (네이버 IMAP용) - .env에서 관리, 비어있으면 에이전트 실행 시 실패
+  mail:
+    host: ${MAIL_HOST:imap.naver.com}
+    port: ${MAIL_PORT:993}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: imaps
+    properties:
+      mail:
+        store:
+          protocol: imaps
+        imaps:
+          ssl:
+            enable: true
+
+# MinIO (S3) 설정
 cloud:
   aws:
     s3:
-      endpoint: http://localhost:9000
-      bucket: newspaper-bucket
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      bucket: ${MINIO_BUCKET:newspaper-bucket}
     credentials:
-      access-key: minioadmin
-      secret-key: minioadmin
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
     region:
-      static: us-east-1 # MinIO는 리전 무관하지만 형식상 필요
+      static: ${MINIO_REGION:us-east-1} # MinIO는 리전 무관하지만 형식상 필요
     stack:
       auto: false
