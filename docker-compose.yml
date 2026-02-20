@@ -5,6 +5,8 @@ services:
   backend:
     container_name: newspaper-api
     build: ./src/api-server  # api-server 폴더에 있는 Dockerfile을 보고 빌드해라
+    env_file:
+      - .env  # .env에 있는 변수(MAIL_USERNAME, MAIL_PASSWORD 등)를 컨테이너에 주입
     ports:
       - "8080:8080"
     environment:

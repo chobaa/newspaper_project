@@ -1,8 +1,11 @@
 package com.newspaper.api_server.dto;
 
-// 프론트엔드에서 보낼 JSON 데이터 모양 정의
+import java.util.List;
+
 public record ArticleSaveRequest(
         String title,
+        String category,
         String content,
-        String writer
+        String writer,
+        List<String> imageUrls
 ) {}

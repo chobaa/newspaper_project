@@ -1,7 +1,6 @@
 package com.newspaper.api_server.domain;
 
 import jakarta.persistence.*;
-import lombok.Generated;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
@@ -19,6 +18,8 @@ public class Article {
     @Column(nullable = false)
     private String title; // 제목
 
+    private String category; // 카테고리 (정치, 경제 등)
+
     @Lob
     private String content; // 본문
 
@@ -32,10 +33,22 @@ public class Article {
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
     private List<Image> images = new ArrayList<>();
 
-    public Article(String title, String content, String writer){
+    public Article(String title, String category, String content, String writer){
         this.title = title;
+        this.category = category;
         this.content = content;
         this.writer = writer;
     }
 
+    public void addImage(Image image) {
+        this.images.add(image);
+    }
+
+    public void increaseViewCount() {
+        this.viewcount++;
+    }
+
+    public void updateContent(String newContent) {
+        this.content = newContent;
+    }
 }

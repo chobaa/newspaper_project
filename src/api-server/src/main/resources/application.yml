@@ -1,34 +1,62 @@
+server:
+  port: 8080
+
 spring:
+  application:
+    name: api-server
+  
   datasource:
-    url: jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
-    password: root  # docker-compose에서 설정한 비번
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update  # 개발용: Entity를 수정하면 DB 테이블도 자동으로 고쳐줌 (편함)
+      ddl-auto: update
+    show-sql: true
     properties:
       hibernate:
-        format_sql: true # 실행되는 SQL을 예쁘게 보여줌
-        show_sql: true   # 실행되는 SQL을 로그에 찍음
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
 
-  # 파일 업로드 용량 제한 (사진 많이 올리니까 넉넉하게)
+  mail:
+    host: ${MAIL_HOST:imap.naver.com}
+    port: ${MAIL_PORT:993}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        store:
+          protocol: imaps
+        imaps:
+          ssl:
+            enable: true
+            trust: "*"
+
   servlet:
     multipart:
-      max-file-size: 30MB
-      max-request-size: 30MB
+      max-file-size: 50MB
+      max-request-size: 50MB
 
-# MinIO (S3) 설정 (나중에 S3 라이브러리 추가하면 사용)
 cloud:
   aws:
-    s3:
-      endpoint: http://localhost:9000
-      bucket: newspaper-bucket
     credentials:
-      access-key: minioadmin
-      secret-key: minioadmin
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    s3:
+      endpoint: ${CLOUD_AWS_S3_ENDPOINT:http://localhost:9000}
+      bucket: ${MINIO_BUCKET:newspaper-bucket}
     region:
-      static: us-east-1 # MinIO는 리전 무관하지만 형식상 필요
+      static: ${MINIO_REGION:us-east-1}
     stack:
       auto: false
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+  enabled: ${GEMINI_ENABLED:true}
+
+logging:
+  level:
+    com.newspaper.api_server.service.GeminiService: DEBUG
