@@ -77,7 +77,7 @@ public class AgentConfigService {
     }
 
     /**
-     * 메일 처리 시 사용할 리스트 (캐시 없이 매번 DB 조회)
+     * 메일 처리 시 사용하는 리스트 (캐시 없이 매번 DB 조회)
      */
     @Transactional(readOnly = true)
     public List<String> getAllowedSenderEmails() {

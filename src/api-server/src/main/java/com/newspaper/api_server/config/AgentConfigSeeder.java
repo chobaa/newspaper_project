@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 앱 기동 시 수정요청 키워드 기본값이 없으면 [수정배포], [정정요청], [보도자료 정정요청]을 등록한다.
+ * 초기 기동 시 수정요청 키워드 기본값이 없으면 [수정배포], [정정요청], [보도자료 정정요청]을 등록한다.
  */
 @Component
 @RequiredArgsConstructor

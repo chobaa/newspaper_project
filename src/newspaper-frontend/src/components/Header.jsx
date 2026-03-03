@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { getBrandSettings } from "../utils/brandSettings";
 
-export default function Header({ onSelectCategory, onLoginClick, isAdmin }) {
+export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSearchChange, showLogin = true }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const brand = getBrandSettings();
 
   // ✅ 요청하신 8개 카테고리로 변경
   const menus = [
@@ -24,7 +27,7 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin }) {
               </svg>
             </div>
             <h1 className="text-2xl font-black text-blue-900 tracking-tighter leading-none group-hover:text-blue-700 transition-colors">
-              NEWSPAPER
+              {brand.siteName}
             </h1>
           </div>
 
@@ -63,15 +66,18 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin }) {
             )}
           </button>
 
-          <button
-            onClick={onLoginClick}
-            className={`hidden sm:block px-4 py-2 rounded-full text-sm font-bold transition ml-2 whitespace-nowrap ${isAdmin
-                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                : "bg-black text-white hover:bg-gray-800"
+          {showLogin && onLoginClick && (
+            <button
+              onClick={onLoginClick}
+              className={`hidden sm:block px-4 py-2 rounded-full text-sm font-bold transition ml-2 whitespace-nowrap ${
+                isAdmin
+                  ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  : "bg-black text-white hover:bg-gray-800"
               }`}
-          >
-            {isAdmin ? "로그아웃" : "관리자 로그인"}
-          </button>
+            >
+              {isAdmin ? "로그아웃" : "관리자 로그인"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -79,7 +85,17 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin }) {
       <div className={`bg-gray-50 border-b border-gray-200 overflow-hidden transition-all duration-300 ease-in-out ${isSearchOpen ? "max-h-24 opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="relative">
-            <input type="text" placeholder="관심있는 뉴스를 검색해보세요..." className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" />
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => {
+                const v = e.target.value;
+                setKeyword(v);
+                onSearchChange && onSearchChange(v);
+              }}
+              placeholder="관심있는 뉴스를 검색해보세요..."
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            />
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>

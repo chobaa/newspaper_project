@@ -32,6 +32,12 @@ public class ArticleApiController {
         return articleService.getArticle(id);
     }
 
+    // 기사 수정
+    @PutMapping("/api/articles/{id}")
+    public void update(@PathVariable Long id, @RequestBody ArticleSaveRequest request) {
+        articleService.updateArticle(id, request);
+    }
+
     // 기사 삭제
     @DeleteMapping("/api/articles/{id}")
     public void delete(@PathVariable Long id) {

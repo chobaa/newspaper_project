@@ -1,16 +1,34 @@
-# React + Vite
+# Newspaper Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 두 개의 브랜드 프론트엔드 구조
 
-Currently, two official plugins are available:
+- 백엔드(Spring Boot, `/api/**`)와 DB는 공용.
+- 프론트엔드는 **같은 코드**를 사용하지만, `VITE_BRAND` 값에 따라
+  - `primary` 브랜드 (예: NEWSPAPER)
+  - `secondary` 브랜드 (예: DAILY FOCUS)
+  로 이름·배너·색상·푸터·광고 문구를 분리한다.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 개발 서버 실행
 
-## React Compiler
+- 1번 신문사:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+cd src/newspaper-frontend
+npm install
+npm run dev:primary
+```
 
-## Expanding the ESLint configuration
+- 2번 신문사(다른 포트에서 동시에 실행):
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cd src/newspaper-frontend
+npm run dev:secondary
+```
+
+- `vite.config.js` 의 프록시 설정 덕분에 두 서버 모두 `http://localhost:8080` 백엔드의 `/api/**`를 공용으로 사용한다.
+
+### 빌드
+
+- 1번 신문사 빌드: `npm run build:primary`
+- 2번 신문사 빌드: `npm run build:secondary`
+

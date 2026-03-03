@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { getDisplaySettings, saveDisplaySettings } from "../utils/displaySettings";
+import { getBrandConfig } from "../config/brandConfig";
+import { getBrandSettings, saveBrandSettings } from "../utils/brandSettings";
 
 export default function AdminPanel() {
   const [config, setConfig] = useState({ allowedSenders: [], modificationKeywords: [] });
@@ -26,6 +28,13 @@ export default function AdminPanel() {
   const [displayForm, setDisplayForm] = useState(getDisplaySettings());
   const [displayDirty, setDisplayDirty] = useState(false);
 
+  // Brand / banner settings (per brand, localStorage)
+  const [brandBase] = useState(getBrandConfig());
+  const [brand, setBrand] = useState(getBrandSettings());
+  const [brandForm, setBrandForm] = useState(getBrandSettings());
+  const [brandDirty, setBrandDirty] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
   // AI summary loading state per log
   const [summaryLoading, setSummaryLoading] = useState({});
 
@@ -33,7 +42,7 @@ export default function AdminPanel() {
     try {
       setError(null);
       const res = await fetch("/api/admin/agent-config");
-      if (!res.ok) throw new Error("\uC124\uC815\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
+      if (!res.ok) throw new Error("설정을 불러오지 못했습니다.");
       const data = await res.json();
       setConfig({
         allowedSenders: data.allowedSenders || [],
@@ -74,10 +83,10 @@ export default function AdminPanel() {
         setScheduleConfig(data);
         setScheduleForm(data);
         setScheduleDirty(false);
-        alert("\uC2A4\uCF00\uC904 \uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+        alert("스케줄 설정이 저장되었습니다.");
       }
     } catch (e) {
-      alert("\uC2A4\uCF00\uC904 \uC124\uC815 \uC800\uC7A5 \uC2E4\uD328: " + e.message);
+      alert("스케줄 설정 저장 실패: " + e.message);
     }
   };
 
@@ -102,12 +111,12 @@ export default function AdminPanel() {
   };
 
   const clearMailLogs = async () => {
-    if (!window.confirm("\uBA54\uC77C \uCC98\uB9AC \uB85C\uADF8\uB97C \uBAA8\uB450 \uC9C0\uC6B0\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")) return;
+    if (!window.confirm("메일 처리 로그를 모두 지우시겠습니까?")) return;
     try {
       await fetch("/api/admin/mail-process-logs", { method: "DELETE" });
       setMailLogs([]);
     } catch (e) {
-      alert("\uB85C\uADF8 \uC0AD\uC81C \uC2E4\uD328: " + e.message);
+      alert("로그 삭제 실패: " + e.message);
     }
   };
 
@@ -119,12 +128,10 @@ export default function AdminPanel() {
       await fetchMailLogs();
       await fetchScheduleConfig();
 
-      const message = "\uC644\uB8CC!\n\uCD1D \uCC98\uB9AC: " + (data.totalProcessed || 0)
-        + "\uAC1C\n\uC131\uACF5: " + (data.successCount || 0)
-        + "\uAC1C\n\uC2E4\uD328: " + (data.failureCount || 0) + "\uAC1C";
+      const message = `완료!\n총 처리: ${data.totalProcessed || 0}개\n성공: ${data.successCount || 0}개\n실패: ${data.failureCount || 0}개`;
       alert(message);
     } catch (e) {
-      alert("\uC2E4\uD589 \uC911 \uC624\uB958: " + e.message);
+      alert("실행 중 오류: " + e.message);
     } finally {
       setFetching(false);
     }
@@ -137,14 +144,14 @@ export default function AdminPanel() {
       const res = await fetch("/api/agent/ai-summary/" + logId + "?imageMaxWidth=" + imgWidth, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
-        alert("AI \uAE30\uC0AC \uC0DD\uC131 \uC644\uB8CC!\n\uC81C\uBAA9: " + (data.title || ""));
+        alert("AI 기사 생성 완료!\n제목: " + (data.title || ""));
         await fetchMailLogs();
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert("AI \uC694\uC57D \uC2E4\uD328: " + (errData.error || "\uC54C \uC218 \uC5C6\uB294 \uC624\uB958"));
+        alert("AI 요약 실패: " + (errData.error || "알 수 없는 오류"));
       }
     } catch (e) {
-      alert("AI \uC694\uC57D \uC624\uB958: " + e.message);
+      alert("AI 요약 오류: " + e.message);
     } finally {
       setSummaryLoading(prev => ({ ...prev, [logId]: false }));
     }
@@ -159,13 +166,57 @@ export default function AdminPanel() {
     setDisplay(displayForm);
     saveDisplaySettings(displayForm);
     setDisplayDirty(false);
-    alert("\uD45C\uC2DC \uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+    alert("표시 설정이 저장되었습니다.");
+  };
+
+  const handleBrandFormChange = (key, value) => {
+    setBrandForm(prev => ({ ...prev, [key]: value }));
+    setBrandDirty(true);
+  };
+
+  const saveBrandConfigLocal = () => {
+    setBrand(brandForm);
+    saveBrandSettings(brandForm);
+    setBrandDirty(false);
+    alert("브랜드 / 배너 설정이 저장되었습니다.");
+  };
+
+  const handleBannerImageUpload = async (fieldKey, file) => {
+    if (!file) return;
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      // 배너 위치에 따라 파일 이름에 키워드를 넣어준다
+      let baseName = "banner";
+      if (fieldKey === "sidebarTopImageUrl") baseName = "sidebar-top";
+      else if (fieldKey === "sidebarLongImageUrl") baseName = "sidebar-long";
+      else if (fieldKey === "bottomBannerImageUrl") baseName = "bottom-banner";
+
+      const ext = file.name && file.name.includes(".") ? file.name.substring(file.name.lastIndexOf(".")) : "";
+      const renamed = new File([file], `${baseName}${ext || ".png"}`, { type: file.type || "image/png" });
+
+      formData.append("file", renamed);
+      const res = await fetch("/api/admin/brand-assets", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        throw new Error("업로드 실패");
+      }
+      const data = await res.json();
+      const url = data.url;
+      setBrandForm(prev => ({ ...prev, [fieldKey]: url }));
+      setBrandDirty(true);
+      alert("배너 이미지가 업로드되었습니다.");
+    } catch (e) {
+      alert("이미지 업로드 오류: " + e.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   useEffect(() => {
     fetchConfig();
-    fetchScheduleConfig();
-    fetchMailLogs();
   }, []);
 
   const addSender = async (e) => {
@@ -178,7 +229,7 @@ export default function AdminPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      if (!res.ok) throw new Error("\uCD94\uAC00 \uC2E4\uD328");
+      if (!res.ok) throw new Error("추가 실패");
       setSenderInput("");
       await fetchConfig();
     } catch (e) {
@@ -187,7 +238,7 @@ export default function AdminPanel() {
   };
 
   const removeSender = async (id) => {
-    if (!window.confirm("\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")) return;
+    if (!window.confirm("삭제하시겠습니까?")) return;
     try {
       await fetch("/api/admin/agent-config/senders/" + id, { method: "DELETE" });
       await fetchConfig();
@@ -206,7 +257,7 @@ export default function AdminPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword }),
       });
-      if (!res.ok) throw new Error("\uCD94\uAC00 \uC2E4\uD328");
+      if (!res.ok) throw new Error("추가 실패");
       setKeywordInput("");
       await fetchConfig();
     } catch (e) {
@@ -215,7 +266,7 @@ export default function AdminPanel() {
   };
 
   const removeKeyword = async (id) => {
-    if (!window.confirm("\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?")) return;
+    if (!window.confirm("삭제하시겠습니까?")) return;
     try {
       await fetch("/api/admin/agent-config/modification-keywords/" + id, { method: "DELETE" });
       await fetchConfig();
@@ -224,307 +275,82 @@ export default function AdminPanel() {
     }
   };
 
-  if (loading) return <div className="p-8 text-gray-500">{"\uB85C\uB529 \uC911..."}</div>;
+  if (loading) return <div className="p-8 text-gray-500">로딩 중...</div>;
   if (error) return <div className="p-8 text-red-600">{error}</div>;
 
   return (
     <div className="max-w-5xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-10">
       <h2 className="text-2xl font-black text-gray-900 border-b pb-4">
-        {"\uAD00\uB9AC\uC790 \uC124\uC815"}
+        관리자 설정
       </h2>
 
-      {/* ===== Schedule Config ===== */}
-      {!scheduleLoading && scheduleForm && (
-        <section>
-          <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uC2A4\uCF00\uC904 \uC124\uC815"}</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            {"\uBA54\uC77C\uC744 \uAC00\uC838\uC624\uB294 \uBC29\uC2DD\uC744 \uC124\uC815\uD569\uB2C8\uB2E4."}
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Manual */}
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-bold text-blue-900 mb-3">{"\uC218\uB3D9 \uC2E4\uD589"}</h4>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {"\uAC00\uC838\uC62C \uBA54\uC77C \uAC1C\uC218"}
-              </label>
-              <input
-                type="number" min="1" max="100"
-                value={scheduleForm.manualFetchCount}
-                onChange={(e) => handleScheduleChange("manualFetchCount", parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {"\"\uC9C0\uAE08 \uAC00\uC838\uC624\uAE30\" \uBC84\uD2BC \uD074\uB9AD \uC2DC \uCC98\uB9AC\uD560 \uCD5C\uB300 \uBA54\uC77C \uC218"}
-              </p>
-            </div>
-            {/* Auto */}
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <h4 className="font-bold text-green-900 mb-3">{"\uC790\uB3D9 \uC2E4\uD589"}</h4>
-              <label className="flex items-center gap-2 mb-3">
-                <input
-                  type="checkbox"
-                  checked={scheduleForm.autoScheduleEnabled}
-                  onChange={(e) => handleScheduleChange("autoScheduleEnabled", e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm font-medium">{"\uC790\uB3D9 \uC2A4\uCF00\uC904 \uD65C\uC131\uD654"}</span>
-              </label>
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{"\uAC00\uC838\uC62C \uBA54\uC77C \uAC1C\uC218"}</label>
-                  <input
-                    type="number" min="1" max="50"
-                    value={scheduleForm.autoFetchCount}
-                    onChange={(e) => handleScheduleChange("autoFetchCount", parseInt(e.target.value) || 1)}
-                    disabled={!scheduleForm.autoScheduleEnabled}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC2E4\uD589 \uAC04\uACA9 (\uC2DC\uAC04)"}</label>
-                  <input
-                    type="number" min="1" max="24"
-                    value={scheduleForm.autoIntervalHours}
-                    onChange={(e) => handleScheduleChange("autoIntervalHours", parseInt(e.target.value) || 1)}
-                    disabled={!scheduleForm.autoScheduleEnabled}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-            </div>
-            {/* Global Settings */}
-            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 md:col-span-2">
-              <h4 className="font-bold text-purple-900 mb-3">{"\uAE30\uBCF8 \uAE30\uC0AC \uC124\uC815"}</h4>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{"\uAE30\uBCF8 \uAE30\uC790\uBA85"}</label>
-                <input
-                  type="text"
-                  value={scheduleForm.defaultWriter}
-                  onChange={(e) => handleScheduleChange("defaultWriter", e.target.value)}
-                  placeholder="AI Reporter"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <p className="text-xs text-gray-500 mt-1">{"\uAE30\uC0AC \uC0DD\uC131 \uC2DC \uAE30\uBCF8\uC73C\uB85C \uC0AC\uC6A9\uB420 \uAE30\uC790 \uC774\uB984\uC785\uB2C8\uB2E4."}</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={saveScheduleConfig}
-              disabled={!scheduleDirty}
-              className={"px-5 py-2 rounded-lg font-bold text-white " + (scheduleDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed")}
-            >
-              {"\uC2A4\uCF00\uC904 \uC124\uC815 \uC800\uC7A5"}
-            </button>
-            {scheduleDirty && <span className="text-sm text-orange-600 self-center">{"\u2731 \uBCC0\uACBD\uC0AC\uD56D\uC774 \uC788\uC2B5\uB2C8\uB2E4."}</span>}
-          </div>
-        </section>
-      )}
-
-      {/* ===== Fetch Now + Mail Results ===== */}
+      {/* ===== 표시 설정 ===== */}
       <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uBA54\uC77C \uAC00\uC838\uC624\uAE30 \uBC0F \uCC98\uB9AC \uACB0\uACFC"}</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-2">기사 표시 설정</h3>
         <p className="text-sm text-gray-500 mb-4">
-          {"\uC218\uB3D9\uC73C\uB85C \uBA54\uC77C\uC744 \uAC00\uC838\uC640\uC11C \uCC98\uB9AC \uACB0\uACFC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4. \uAC01 \uD56D\uBAA9\uC758 AI \uC694\uC57D \uBC84\uD2BC\uC73C\uB85C \uAE30\uC0AC\uB97C \uC790\uB3D9 \uC0DD\uC131\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."}
-        </p>
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={runFetchNow}
-            disabled={fetching}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
-          >
-            {fetching ? "\uC2E4\uD589 \uC911..." : "\uC9C0\uAE08 \uAC00\uC838\uC624\uAE30"}
-          </button>
-          <button
-            onClick={fetchMailLogs}
-            className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50"
-          >
-            {"\uC0C8\uB85C\uACE0\uCE68"}
-          </button>
-          <button
-            onClick={clearMailLogs}
-            className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
-          >
-            {"\uBAA8\uB450 \uC9C0\uC6B0\uAE30"}
-          </button>
-        </div>
-
-        {/* Mail Process Results - Card List */}
-        <div className="space-y-3">
-          {mailLogsLoading ? (
-            <div className="p-6 text-center text-gray-500">{"\uB85C\uB529 \uC911..."}</div>
-          ) : mailLogs.length === 0 ? (
-            <div className="p-6 text-center text-gray-400 border border-dashed border-gray-300 rounded-lg">
-              {"\uCC98\uB9AC\uB41C \uBA54\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \"\uC9C0\uAE08 \uAC00\uC838\uC624\uAE30\" \uBC84\uD2BC\uC744 \uB20C\uB7EC\uBCF4\uC138\uC694."}
-            </div>
-          ) : (
-            mailLogs.map((log) => (
-              <div key={log.id} className={"p-4 rounded-xl border " + (log.success ? "border-green-200 bg-green-50/50" : "border-red-200 bg-red-50/50")}>
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      {log.success ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">{"\u2713 \uC131\uACF5"}</span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">{"\u2717 \uC2E4\uD328"}</span>
-                      )}
-                      <span className="text-xs text-gray-500">
-                        {new Date(log.processedDate).toLocaleString("ko-KR")}
-                      </span>
-                    </div>
-                    <h4 className="font-bold text-gray-900 text-base">{log.subject}</h4>
-                    <p className="text-sm text-gray-500 mt-0.5">{"\uBC1C\uC2E0\uC790: " + (log.senderEmail || "-")}</p>
-                    {log.errorMessage && (
-                      <p className="text-sm text-red-600 mt-1">{"\uC624\uB958: " + log.errorMessage}</p>
-                    )}
-                    {log.articleId && (
-                      <p className="text-sm text-blue-600 mt-1">{"\uAE30\uC0AC ID: " + log.articleId}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Attachment Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  {/* Files */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                      <span>{"\uD83D\uDCC2"}</span>
-                      <span>{"\uAC00\uC838\uC628 \uD30C\uC77C"}</span>
-                    </div>
-                    {log.attachments && log.attachments.length > 0 ? (
-                      <ul className="space-y-1">
-                        {log.attachments.map((f, i) => (
-                          <li key={i} className="text-xs text-gray-700 flex items-center gap-1">
-                            <span className="text-gray-400">{"\u2022"}</span>
-                            <span className="break-all">{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-gray-400">{"\uC5C6\uC74C"}</p>
-                    )}
-                  </div>
-
-                  {/* Text */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                      <span>{"\uD83D\uDCC4"}</span>
-                      <span>{"\uCD94\uCD9C\uB41C \uD14D\uC2A4\uD2B8"}</span>
-                    </div>
-                    {log.hwpFileName ? (
-                      <div>
-                        <p className="text-xs text-purple-700 font-medium">{log.hwpFileName}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{"\uBB38\uC11C\uC5D0\uC11C \uD14D\uC2A4\uD2B8 \uCD94\uCD9C\uB428"}</p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-400">{"\uBB38\uC11C \uD30C\uC77C \uC5C6\uC74C (\uBA54\uC77C \uBCF8\uBB38 \uC0AC\uC6A9)"}</p>
-                    )}
-                  </div>
-
-                  {/* Images */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                      <span>{"\uD83D\uDDBC\uFE0F"}</span>
-                      <span>{"\uAC00\uC838\uC628 \uC774\uBBF8\uC9C0"}</span>
-                    </div>
-                    {log.imageFileNames && log.imageFileNames.length > 0 ? (
-                      <ul className="space-y-1">
-                        {log.imageFileNames.map((img, i) => (
-                          <li key={i} className="text-xs text-blue-700 flex items-center gap-1">
-                            <span className="text-blue-400">{"\u2022"}</span>
-                            <span className="break-all">{img}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-gray-400">{"\uC5C6\uC74C"}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* AI Summary Button */}
-                {!log.articleId && log.success !== true && (
-                  <button
-                    onClick={() => runAiSummary(log.id)}
-                    disabled={summaryLoading[log.id]}
-                    className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
-                  >
-                    {summaryLoading[log.id] ? "\u2728 AI \uAE30\uC0AC \uC0DD\uC131 \uC911..." : "\u2728 AI \uC694\uC57D\uC73C\uB85C \uAE30\uC0AC \uC0DD\uC131"}
-                  </button>
-                )}
-                {log.articleId && (
-                  <div className="w-full py-2 text-center text-sm text-green-700 bg-green-100 rounded-lg font-medium">
-                    {"\u2713 \uAE30\uC0AC \uC0DD\uC131 \uC644\uB8CC (ID: " + log.articleId + ")"}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      {/* ===== Display Settings ===== */}
-      <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uAE30\uC0AC \uD45C\uC2DC \uC124\uC815"}</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          {"\uAE30\uC0AC \uC0C1\uC138 \uD398\uC774\uC9C0\uC758 \uAE00\uAF34, \uAE00\uC528 \uD06C\uAE30, \uC774\uBBF8\uC9C0 \uD06C\uAE30, \uC904\uAC04\uACA9\uC744 \uC870\uC808\uD569\uB2C8\uB2E4."}
+          기사 상세 페이지의 글꼴, 글씨 크기, 이미지 크기, 줄간격을 조절합니다.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{"\uAE00\uAF34"}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">글꼴</label>
             <select
               value={displayForm.fontFamily}
               onChange={(e) => handleDisplayFormChange("fontFamily", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              <option value="inherit">{"\uAE30\uBCF8"}</option>
+              <option value="inherit">기본</option>
               <option value="'Noto Sans KR', sans-serif">Noto Sans KR</option>
-              <option value="'Nanum Myeongjo', serif">Nanum Myeongjo</option>
+              <option value="'Nanum Myeongjo', serif">나눔명조</option>
               <option value="Georgia, serif">Georgia</option>
-              <option value="'Malgun Gothic', sans-serif">{"\uB9D1\uC740 \uACE0\uB515"}</option>
+              <option value="'Malgun Gothic', sans-serif">맑은 고딕</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{"\uAE00\uC528 \uD06C\uAE30"}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">글씨 크기</label>
             <select
               value={displayForm.fontSize}
               onChange={(e) => handleDisplayFormChange("fontSize", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              <option value="0.875rem">{"\uC791\uAC8C (14px)"}</option>
-              <option value="1rem">{"\uBCF4\uD1B5 (16px)"}</option>
-              <option value="1.125rem">{"\uAE30\uBCF8 (18px)"}</option>
-              <option value="1.25rem">{"\uD06C\uAC8C (20px)"}</option>
-              <option value="1.5rem">{"\uC544\uC8FC \uD06C\uAC8C (24px)"}</option>
+              <option value="0.625rem">최소 (10px)</option>
+              <option value="0.75rem">최소 (12px)</option>
+              <option value="0.875rem">작게 (14px)</option>
+              <option value="1rem">보통 (16px)</option>
+              <option value="1.125rem">기본 (18px)</option>
+              <option value="1.25rem">크게 (20px)</option>
+              <option value="1.5rem">아주 크게 (24px)</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC774\uBBF8\uC9C0 \uCD5C\uB300 \uB108\uBE44"}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">이미지 최대 너비</label>
             <select
               value={displayForm.imageMaxWidth}
               onChange={(e) => handleDisplayFormChange("imageMaxWidth", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              <option value="100%">{"\uC804\uCCB4 (100%)"}</option>
+              <option value="100%">전체 (100%)</option>
               <option value="80%">80%</option>
+              <option value="1000px">1000px</option>
+              <option value="900px">900px</option>
+              <option value="800px">800px</option>
+              <option value="700px">700px</option>
               <option value="600px">600px</option>
               <option value="500px">500px</option>
               <option value="400px">400px</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC904\uAC04\uACA9"}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">줄간격</label>
             <select
               value={displayForm.lineHeight}
               onChange={(e) => handleDisplayFormChange("lineHeight", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
-              <option value="1.4">{"\uC881\uAC8C (1.4)"}</option>
-              <option value="1.6">{"\uBCF4\uD1B5 (1.6)"}</option>
-              <option value="1.8">{"\uAE30\uBCF8 (1.8)"}</option>
-              <option value="2">{"\uB113\uAC8C (2)"}</option>
-              <option value="2.2">{"\uC544\uC8FC \uB113\uAC8C (2.2)"}</option>
+              <option value="1.4">좁게 (1.4)</option>
+              <option value="1.6">보통 (1.6)</option>
+              <option value="1.8">기본 (1.8)</option>
+              <option value="2">넓게 (2)</option>
+              <option value="2.2">아주 넓게 (2.2)</option>
             </select>
           </div>
         </div>
@@ -532,74 +358,240 @@ export default function AdminPanel() {
           <button
             onClick={saveDisplayConfig}
             disabled={!displayDirty}
-            className={"px-5 py-2 rounded-lg font-bold text-white " + (displayDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed")}
+            className={`px-5 py-2 rounded-lg font-bold text-white ${displayDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"}`}
           >
-            {"\uD45C\uC2DC \uC124\uC815 \uC800\uC7A5"}
+            표시 설정 저장
           </button>
-          {displayDirty && <span className="text-sm text-orange-600 self-center">{"\u2731 \uBCC0\uACBD\uC0AC\uD56D\uC774 \uC788\uC2B5\uB2C8\uB2E4."}</span>}
+          {displayDirty && <span className="text-sm text-orange-600 self-center">✱ 변경사항이 있습니다.</span>}
         </div>
       </section>
 
-      {/* ===== Sender Whitelist ===== */}
+      {/* ===== 브랜드 / 배너 설정 ===== */}
       <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uBCF4\uB0B8\uC0AC\uB78C \uD654\uC774\uD2B8\uB9AC\uC2A4\uD2B8"}</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-2">브랜드 / 배너 설정</h3>
         <p className="text-sm text-gray-500 mb-4">
-          {"\uC774 \uBAA9\uB85D\uC5D0 \uD3EC\uD568\uB41C \uC774\uBA54\uC77C \uC8FC\uC18C\uB9CC \uAE30\uC0AC\uB85C \uCC98\uB9AC\uD569\uB2C8\uB2E4. \uBE44\uC5B4 \uC788\uC73C\uBA74 \uBAA8\uB4E0 \uBCF4\uB0B8\uC0AC\uB78C \uD5C8\uC6A9."}
+          현재 설정은 브랜드(사이트)별로 로컬에 저장됩니다. 목소리 및 광고 배너를 편집합니다.
         </p>
-        <form onSubmit={addSender} className="flex gap-2 mb-4">
-          <input
-            type="email"
-            value={senderInput}
-            onChange={(e) => setSenderInput(e.target.value)}
-            placeholder="press@example.com"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
-            {"\uCD94\uAC00"}
-          </button>
-        </form>
-        <ul className="space-y-2">
-          {config.allowedSenders.map((item) => (
-            <li key={item.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-800">{item.email}</span>
-              <button onClick={() => removeSender(item.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">{"\uC0AD\uC81C"}</button>
-            </li>
-          ))}
-          {config.allowedSenders.length === 0 && (
-            <li className="text-gray-400 text-sm py-2">{"\uB4F1\uB85D\uB41C \uBCF4\uB0B8\uC0AC\uB78C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."}</li>
-          )}
-        </ul>
-      </section>
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-4">
+          <div className="text-xs text-gray-500 mb-2">
+            현재 브랜드: <span className="font-semibold text-gray-700">{brandBase.siteName} ({brandBase.id})</span>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">사이트 이름 (헤더 배너)</label>
+            <input
+              type="text"
+              value={brandForm.siteName}
+              onChange={(e) => handleBrandFormChange("siteName", e.target.value)}
+              placeholder={brandBase.siteName}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">상단 광고 배너 문구</label>
+              <input
+                type="text"
+                value={brandForm.sidebarTopText}
+                onChange={(e) => handleBrandFormChange("sidebarTopText", e.target.value)}
+                placeholder={brandBase.adTexts.sidebarTop}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  id="show-sidebar-top"
+                  type="checkbox"
+                  checked={brandForm.showSidebarTop}
+                  onChange={(e) => handleBrandFormChange("showSidebarTop", e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <label htmlFor="show-sidebar-top" className="text-xs text-gray-700">이 상단 배너를 화면에 표시</label>
+              </div>
+              <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">상단 광고 이미지 URL (선택)</label>
+              <input
+                type="text"
+                value={brandForm.sidebarTopImageUrl}
+                onChange={(e) => handleBrandFormChange("sidebarTopImageUrl", e.target.value)}
+                placeholder="https://example.com/banner-top.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+              />
+              <div className="mt-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">상단 광고 이미지 업로드</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleBannerImageUpload("sidebarTopImageUrl", file);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 disabled:opacity-50"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">세로 긴 광고 배너 문구</label>
+              <input
+                type="text"
+                value={brandForm.sidebarLongText}
+                onChange={(e) => handleBrandFormChange("sidebarLongText", e.target.value)}
+                placeholder={brandBase.adTexts.sidebarLong}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  id="show-sidebar-long"
+                  type="checkbox"
+                  checked={brandForm.showSidebarLong}
+                  onChange={(e) => handleBrandFormChange("showSidebarLong", e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <label htmlFor="show-sidebar-long" className="text-xs text-gray-700">이 세로형 배너를 화면에 표시</label>
+              </div>
+              <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">세로 긴 광고 이미지 URL (선택)</label>
+              <input
+                type="text"
+                value={brandForm.sidebarLongImageUrl}
+                onChange={(e) => handleBrandFormChange("sidebarLongImageUrl", e.target.value)}
+                placeholder="https://example.com/banner-long.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+              />
+              <div className="mt-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">세로 긴 광고 이미지 업로드</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleBannerImageUpload("sidebarLongImageUrl", file);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </div>
 
-      {/* ===== Modification Keywords ===== */}
-      <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uC218\uC815\uC694\uCCAD \uD0A4\uC6CC\uB4DC"}</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          {"\uC81C\uBAA9\uC5D0 \uD3EC\uD568\uB418\uBA74 \uC218\uC815\uC694\uCCAD\uC73C\uB85C \uC778\uC2DD\uD558\uC5EC \uAE30\uC874 \uAE30\uC0AC \uBCF8\uBB38\uC744 \uAC31\uC2E0\uD569\uB2C8\uB2E4."}
-        </p>
-        <form onSubmit={addKeyword} className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={keywordInput}
-            onChange={(e) => setKeywordInput(e.target.value)}
-            placeholder="[\uC218\uC815\uBC30\uD3EC]"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
-            {"\uCD94\uAC00"}
-          </button>
-        </form>
-        <ul className="space-y-2">
-          {config.modificationKeywords.map((item) => (
-            <li key={item.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-800 font-mono">{item.keyword}</span>
-              <button onClick={() => removeKeyword(item.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">{"\uC0AD\uC81C"}</button>
-            </li>
-          ))}
-          {config.modificationKeywords.length === 0 && (
-            <li className="text-gray-400 text-sm py-2">{"\uB4F1\uB85D\uB41C \uD0A4\uC6CC\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."}</li>
-          )}
-        </ul>
+          <div className="mt-6 border-t border-gray-200 pt-4 space-y-3">
+            <h4 className="text-sm font-bold text-gray-800">하단 띠 배너 설정</h4>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">하단 띠 배너 문구</label>
+              <input
+                type="text"
+                value={brandForm.bottomBannerText}
+                onChange={(e) => handleBrandFormChange("bottomBannerText", e.target.value)}
+                placeholder="하단 띠 배너 광고"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="show-bottom-banner"
+                type="checkbox"
+                checked={brandForm.showBottomBanner}
+                onChange={(e) => handleBrandFormChange("showBottomBanner", e.target.checked)}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+              <label htmlFor="show-bottom-banner" className="text-xs text-gray-700">이 하단 띠 배너를 화면에 표시</label>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">하단 띠 배너 이미지 URL (선택)</label>
+              <input
+                type="text"
+                value={brandForm.bottomBannerImageUrl}
+                onChange={(e) => handleBrandFormChange("bottomBannerImageUrl", e.target.value)}
+                placeholder="https://example.com/banner-bottom.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+              />
+            </div>
+          </div>
+
+          {/* 현재 사용 중인 배너 이미지 리스트 */}
+          <div className="mt-6 border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-bold text-gray-800 mb-2">배너 이미지 목록</h4>
+            <p className="text-xs text-gray-500 mb-3">현재 각 배너에 설정된 이미지 목록입니다.</p>
+            <div className="space-y-3">
+              {/* 상단 배너 */}
+              {brandForm.sidebarTopImageUrl && (
+                <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
+                  <div className="w-16 h-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                    <img src={brandForm.sidebarTopImageUrl} alt="상단 배너" className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800">상단 광고 배너</div>
+                    <div className="text-[10px] text-gray-500 truncate">{brandForm.sidebarTopImageUrl}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleBrandFormChange("sidebarTopImageUrl", "")}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded text-red-600 hover:bg-red-50"
+                  >
+                    제거
+                  </button>
+                </div>
+              )}
+
+              {/* 세로 배너 */}
+              {brandForm.sidebarLongImageUrl && (
+                <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
+                  <div className="w-16 h-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                    <img src={brandForm.sidebarLongImageUrl} alt="세로 배너" className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800">세로 긴 광고 배너</div>
+                    <div className="text-[10px] text-gray-500 truncate">{brandForm.sidebarLongImageUrl}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleBrandFormChange("sidebarLongImageUrl", "")}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded text-red-600 hover:bg-red-50"
+                  >
+                    제거
+                  </button>
+                </div>
+              )}
+
+              {/* 하단 띠 배너 */}
+              {brandForm.bottomBannerImageUrl && (
+                <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
+                  <div className="w-16 h-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                    <img src={brandForm.bottomBannerImageUrl} alt="하단 띠 배너" className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800">하단 띠 배너</div>
+                    <div className="text-[10px] text-gray-500 truncate">{brandForm.bottomBannerImageUrl}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleBrandFormChange("bottomBannerImageUrl", "")}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded text-red-600 hover:bg-red-50"
+                  >
+                    제거
+                  </button>
+                </div>
+              )}
+
+              {!brandForm.sidebarTopImageUrl && !brandForm.sidebarLongImageUrl && !brandForm.bottomBannerImageUrl && (
+                <div className="text-xs text-gray-400">등록된 배너 이미지가 없습니다.</div>
+              )}
+            </div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={saveBrandConfigLocal}
+              disabled={!brandDirty}
+              className={`px-5 py-2 rounded-lg font-bold text-white ${brandDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"}`}
+            >
+              브랜드 / 배너 설정 저장
+            </button>
+            {brandDirty && <span className="text-sm text-orange-600 self-center">✱ 변경사항이 있습니다.</span>}
+          </div>
+        </div>
       </section>
     </div>
   );
