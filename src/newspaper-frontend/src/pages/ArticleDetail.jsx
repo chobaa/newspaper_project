@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplaySettings } from '../utils/displaySettings';
 
 import Header from '../components/Header';
@@ -9,15 +9,57 @@ import Footer from '../components/Footer';
 export default function ArticleDetail() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { id } = useParams();
   const display = getDisplaySettings();
 
-  // 목록에서 넘겨준 기사 데이터 받기
-  const article = location.state?.article;
+  // 목록에서 넘겨준 기사 데이터 받기 (없으면 서버에서 조회)
+  const [article, setArticle] = useState(location.state?.article || null);
+  const [loading, setLoading] = useState(!location.state?.article);
+
+  const [relatedNews, setRelatedNews] = useState([]);
 
   // 스크롤을 맨 위로 올리기 (페이지 이동 시)
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // 서버에서 기사 상세 조회 (URL로 직접 접근 시)
+  useEffect(() => {
+    const fetchArticle = async () => {
+      if (article || !id) return;
+      try {
+        const res = await fetch(`/api/articles/${id}`);
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        const dateStr = data.regDate ? data.regDate.substring(0, 10) : "";
+        const mapped = {
+          id: data.id,
+          category: data.category || "정치",
+          title: data.title,
+          content: data.content,
+          date: dateStr,
+          author: data.writer || "기자",
+        };
+        setArticle(mapped);
+      } catch (e) {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchArticle();
+  }, [article, id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-xl text-gray-500 mb-4">기사를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
 
   // 데이터가 없으면 예외 처리
   if (!article) {
@@ -31,12 +73,32 @@ export default function ArticleDetail() {
     );
   }
 
-  // 관련 기사 더미 데이터 (같은 카테고리 느낌을 주기 위해 생성)
-  const relatedNews = [
-    { id: 101, title: `${article.category} 분야의 또 다른 중요 이슈입니다`, date: "2026.01.08" },
-    { id: 102, title: "관련된 심층 분석 기사를 확인해보세요", date: "2026.01.07" },
-    { id: 103, title: "전문가들이 말하는 향후 전망은?", date: "2026.01.06" },
-  ];
+  // 실제 기사 목록에서 동일 카테고리 추천 기사 불러오기
+  useEffect(() => {
+    const fetchRelated = async () => {
+      if (!article) return;
+      try {
+        const res = await fetch("/api/articles");
+        if (!res.ok) {
+          return;
+        }
+        const data = await res.json();
+        const sameCategory = data
+          .filter((a) => a.id !== article.id && a.category === article.category)
+          .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
+          .slice(0, 3)
+          .map((a) => ({
+            id: a.id,
+            title: a.title,
+            date: a.regDate ? a.regDate.substring(0, 10) : "",
+          }));
+        setRelatedNews(sameCategory);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchRelated();
+  }, [article]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -88,21 +150,29 @@ export default function ArticleDetail() {
             />
           </div>
 
-          {/* ✅ [추가] 관련 기사 섹션 */}
+          {/* ✅ 관련 기사 섹션 (실제 기사 기반) */}
           <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
             <h3 className="font-bold text-lg text-gray-800 mb-4 border-l-4 border-blue-600 pl-3">
               이 시각 <span className="text-blue-600">{article.category}</span> 주요 뉴스
             </h3>
-            <ul className="space-y-3">
-              {relatedNews.map((news) => (
-                <li key={news.id} className="group flex justify-between items-center cursor-pointer hover:bg-white p-2 rounded transition">
-                  <span className="text-gray-700 group-hover:text-blue-600 group-hover:underline truncate flex-1">
-                    · {news.title}
-                  </span>
-                  <span className="text-xs text-gray-400 ml-4">{news.date}</span>
-                </li>
-              ))}
-            </ul>
+            {relatedNews.length === 0 ? (
+              <p className="text-sm text-gray-400">관련 기사가 아직 없습니다.</p>
+            ) : (
+              <ul className="space-y-3">
+                {relatedNews.map((news) => (
+                  <li
+                    key={news.id}
+                    className="group flex justify-between items-center cursor-pointer hover:bg-white p-2 rounded transition"
+                    onClick={() => navigate(`/article/${news.id}`)}
+                  >
+                    <span className="text-gray-700 group-hover:text-blue-600 group-hover:underline truncate flex-1">
+                      · {news.title}
+                    </span>
+                    <span className="text-xs text-gray-400 ml-4">{news.date}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
         </div>

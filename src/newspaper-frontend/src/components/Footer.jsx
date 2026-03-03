@@ -45,11 +45,11 @@ export default function Footer() {
           <p>
             <span className="font-bold mr-2">제호 :</span> NEWSPAPER &nbsp;|&nbsp; 
             <span className="font-bold mx-2">직통전화 :</span> 010-1234-5678 &nbsp;|&nbsp; 
-            <span className="font-bold mx-2">발행인·편집인 :</span> 김대표
+            <span className="font-bold mx-2">발행인·편집인 :</span> 송종명
           </p>
           <p>
-            <span className="font-bold mr-2">개인정보관리책임자 :</span> 이관리 &nbsp;|&nbsp; 
-            <span className="font-bold mx-2">청소년보호책임자 :</span> 박보호
+            <span className="font-bold mr-2">개인정보관리책임자 :</span> 송종명 &nbsp;|&nbsp; 
+            <span className="font-bold mx-2">청소년보호책임자 :</span> 송종명
           </p>
           
           <div className="mt-4 flex flex-col md:flex-row md:items-center gap-2">

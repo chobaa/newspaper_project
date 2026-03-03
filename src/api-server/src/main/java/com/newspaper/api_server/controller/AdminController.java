@@ -4,10 +4,14 @@ import com.newspaper.api_server.dto.AgentConfigDto;
 import com.newspaper.api_server.dto.ScheduleDto;
 import com.newspaper.api_server.service.AgentConfigService;
 import com.newspaper.api_server.service.AgentLogService;
+import com.newspaper.api_server.service.ImageService;
 import com.newspaper.api_server.service.ScheduleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -16,6 +20,7 @@ import java.util.Map;
  * - 에이전트 설정 관리
  * - 스케줄 설정 관리
  * - 로그 조회
+ * - 관리자용 에셋(배너 이미지 등) 업로드/삭제
  */
 @RestController
 @RequiredArgsConstructor
@@ -24,6 +29,7 @@ public class AdminController {
     private final AgentConfigService agentConfigService;
     private final AgentLogService agentLogService;
     private final ScheduleService scheduleService;
+    private final ImageService imageService;
 
     // ========== 에이전트 설정 ==========
 
@@ -98,5 +104,21 @@ public class AdminController {
     @DeleteMapping("/api/admin/mail-process-logs")
     public void clearMailProcessLogs() {
         scheduleService.clearMailProcessLogs();
+    }
+
+    // ========== 관리자 에셋(배너/로고 이미지) 업로드/삭제 ==========
+
+    @PostMapping(
+            value = "/api/admin/brand-assets",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public Map<String, String> uploadBrandAsset(@RequestParam("file") MultipartFile file) throws IOException {
+        String url = imageService.uploadImage(file);
+        return Map.of("url", url);
+    }
+
+    @DeleteMapping("/api/admin/brand-assets")
+    public void deleteBrandAsset(@RequestParam("url") String url) {
+        imageService.deleteImageByUrl(url);
     }
 }

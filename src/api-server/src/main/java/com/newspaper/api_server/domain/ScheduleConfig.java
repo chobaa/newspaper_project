@@ -20,7 +20,7 @@ public class ScheduleConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 수동 스케줄: 최근 n개 가져오기
+    // 수동 스케줄 최근 n개 가져오기
     @Column(nullable = false)
     private Integer manualFetchCount = 10;
 
@@ -28,11 +28,11 @@ public class ScheduleConfig {
     @Column(nullable = false)
     private Boolean autoScheduleEnabled = false;
 
-    // 자동 스케줄: 최근 n개 가져오기
+    // 자동 스케줄 최근 n개 가져오기
     @Column(nullable = false)
     private Integer autoFetchCount = 5;
 
-    // 자동 스케줄: n시간 간격
+    // 자동 스케줄 n시간 간격
     @Column(nullable = false)
     private Integer autoIntervalHours = 1;
 

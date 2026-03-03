@@ -12,7 +12,8 @@ import java.util.List;
 @NoArgsConstructor
 public class Article {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id; // PK
 
     @Column(nullable = false)
@@ -21,11 +22,12 @@ public class Article {
     private String category; // 카테고리 (정치, 경제 등)
 
     @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String content; // 본문
 
     private String writer; // 기자명
 
-    private LocalDateTime regDate = LocalDateTime.now(); // 작성한 시간
+    private LocalDateTime regDate = LocalDateTime.now(); // 작성된 시간
 
     private Long viewcount = 0L;
 
@@ -33,7 +35,7 @@ public class Article {
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
     private List<Image> images = new ArrayList<>();
 
-    public Article(String title, String category, String content, String writer){
+    public Article(String title, String category, String content, String writer) {
         this.title = title;
         this.category = category;
         this.content = content;

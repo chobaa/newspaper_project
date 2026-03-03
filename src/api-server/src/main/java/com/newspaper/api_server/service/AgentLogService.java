@@ -30,7 +30,7 @@ public class AgentLogService {
 
     public List<String> getRecentLogs() {
         List<String> copy = new ArrayList<>(lines);
-        Collections.reverse(copy); // 최신순
+        Collections.reverse(copy); // 최신순 정렬
         return copy;
     }
 

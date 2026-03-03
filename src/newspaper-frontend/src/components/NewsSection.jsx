@@ -3,9 +3,12 @@ import { useNavigate } from "react-router-dom"; // ✅ 페이지 이동 훅 추�
 import Widget from "./Widget";
 import ArticleForm from "./ArticleForm";
 
-export default function NewsSection({ category, isAdmin }) {
+const PAGE_SIZE = 10;
+
+export default function NewsSection({ category, isAdmin, search }) {
   const [articles, setArticles] = useState([]);
   const [isWriting, setIsWriting] = useState(false);
+  const [page, setPage] = useState(1);
   const navigate = useNavigate(); // ✅ 이동 함수 생성
 
   useEffect(() => {
@@ -49,13 +52,23 @@ export default function NewsSection({ category, isAdmin }) {
     if (!isAdmin) setIsWriting(false);
   }, [isAdmin]);
 
+  // 상단 카테고리 변경 시에는 항상 작성 모드 종료하고 해당 카테고리 리스트로 이동
+  useEffect(() => {
+    setIsWriting(false);
+    setPage(1);
+  }, [category]);
+
   // 본문 내용에서 이미지 src 추출
   const extractImageUrlsFromContent = (html) => {
     const regex = /<img[^>]+src="([^">]+)"/g;
     const urls = [];
     let match;
     while ((match = regex.exec(html)) !== null) {
-      urls.push(match[1]);
+      const src = match[1];
+      // data: 로 시작하는 인라인(base64) 이미지는 DB에 저장하지 않는다
+      if (src && !src.startsWith("data:")) {
+        urls.push(src);
+      }
     }
     return urls;
   };
@@ -186,8 +199,21 @@ export default function NewsSection({ category, isAdmin }) {
   // 카테고리별 전체 리스트 뷰
   // =================================================================
   const CategoryListView = () => {
-    const filteredArticles = category === "전체" ? articles : articles.filter(a => a.category === category);
-    const displayList = filteredArticles.length > 0 ? filteredArticles : articles;
+    const keyword = (search || "").trim().toLowerCase();
+    let filteredArticles = articles.filter(a => a.category === category);
+    if (keyword) {
+      filteredArticles = filteredArticles.filter((a) => {
+        const title = a.title?.toLowerCase() || "";
+        const desc = a.desc?.toLowerCase() || "";
+        return title.includes(keyword) || desc.includes(keyword);
+      });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filteredArticles.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    const displayList = filteredArticles.slice(start, end);
 
     return (
       <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
@@ -231,44 +257,94 @@ export default function NewsSection({ category, isAdmin }) {
                 </div>
               </div>
             ))}
-            {displayList.length === 0 && <div className="text-center py-20 text-gray-400">등록된 기사가 없습니다.</div>}
+            {displayList.length === 0 && (
+              <div className="text-center py-20 text-gray-400">
+                {keyword ? "검색 결과가 없습니다." : "등록된 기사가 없습니다."}
+              </div>
+            )}
+
+            {filteredArticles.length > 0 && (
+              <div className="flex items-center justify-center gap-3 pt-4">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className={`px-3 py-1 rounded border text-sm ${
+                    safePage === 1
+                      ? "text-gray-300 border-gray-200 cursor-not-allowed"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  이전
+                </button>
+                <span className="text-sm text-gray-500">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className={`px-3 py-1 rounded border text-sm ${
+                    safePage === totalPages
+                      ? "text-gray-300 border-gray-200 cursor-not-allowed"
+                      : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  다음
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
     );
   };
 
-  const MainGridView = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-[minmax(180px,auto)] animate-[fadeIn_0.3s_ease-out]">
+  const MainGridView = () => {
+    const headline = articles[0];
 
-       {/* 상단 헤드라인 위젯 (임시로 첫 번째 기사로 연결) */}
-       <Widget className="lg:col-span-2 min-h-[400px] flex flex-col justify-end relative overflow-hidden group cursor-pointer">
-        <div
-          onClick={() => goDetail(articles[0] || {})}
-          className="absolute inset-0 w-full h-full"
-        >
-          <div className="absolute inset-0 bg-gray-300 group-hover:scale-105 transition-transform duration-500">
-            <img src="https://picsum.photos/800/600" alt="headline" className="w-full h-full object-cover" />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-          <div className="relative z-10 text-white p-6">
-             <span className="bg-blue-600 text-xs font-bold px-2 py-1 rounded mb-3 inline-block">HEADLINE</span>
-             <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-3">NEWSPAPER 메인 레이아웃 개편</h2>
-             <p className="text-gray-200 text-lg line-clamp-2">이제 각 섹션의 중요 기사는 크게, 나머지 기사는 리스트로 한눈에 볼 수 있습니다.</p>
-          </div>
-        </div>
-      </Widget>
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-[minmax(180px,auto)] animate-[fadeIn_0.3s_ease-out]">
 
-      <GroupWidget title="정치 / 경제" targetCategories={["정치", "경제"]} />
+        {/* 상단 헤드라인 위젯: 최신 기사 1건 */}
+        <Widget className="lg:col-span-2 min-h-[400px] flex flex-col justify-end relative overflow-hidden group cursor-pointer">
+          {headline ? (
+            <div
+              onClick={() => goDetail(headline)}
+              className="absolute inset-0 w-full h-full"
+            >
+              <div className="absolute inset-0 bg-gray-300 group-hover:scale-105 transition-transform duration-500">
+                <img src={headline.img} alt={headline.title} className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+              <div className="relative z-10 text-white p-6">
+                <span className="bg-blue-600 text-xs font-bold px-2 py-1 rounded mb-3 inline-block">
+                  HEADLINE · {headline.category}
+                </span>
+                <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-3 line-clamp-2">
+                  {headline.title}
+                </h2>
+                <p className="text-gray-200 text-lg line-clamp-2">
+                  {headline.desc || "최신 헤드라인 기사를 확인해 보세요."}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+              아직 등록된 기사가 없습니다.
+            </div>
+          )}
+        </Widget>
+
+        <GroupWidget title="정치 / 경제" targetCategories={["정치", "경제"]} />
       <GroupWidget title="사회 / 문화" targetCategories={["사회", "문화"]} />
       <GroupWidget title="교육" targetCategories={["교육"]} />
       <GroupWidget title="인터뷰 / 경기도소식" targetCategories={["인터뷰칼럼", "경기도소식"]} />
 
-      <div className="lg:col-span-2 h-24 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-400 font-bold shadow-sm">
-        하단 띠 배너 광고 영역
+        <div className="lg:col-span-2 h-24 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-blue-400 font-bold shadow-sm">
+          하단 띠 배너 광고 영역
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return <>{category === "전체" ? <MainGridView /> : <CategoryListView />}</>;
 }

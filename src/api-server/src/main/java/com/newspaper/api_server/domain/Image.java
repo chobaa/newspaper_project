@@ -16,7 +16,7 @@ public class Image {
 
     private String originalFileName; // 사용자가 올린 원래 파일명 (예: photo.jpg)
 
-    @ManyToOne(fetch = FetchType.LAZY) // 필요할 때만 기사 정보를 가져와라 (성능 최적화)
+    @ManyToOne(fetch = FetchType.LAZY) // 필요할 때만 기사 정보를 가져온다 (성능 최적화)
     @JoinColumn(name = "article_id") // DB 테이블에 'article_id'라는 컬럼(FK)을 만들어라
     private Article article;
 

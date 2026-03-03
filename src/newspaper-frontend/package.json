@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "dev:primary": "vite --mode primary",
+    "dev:secondary": "vite --mode secondary --port 5174",
+    "build:primary": "vite build --mode primary",
+    "build:secondary": "vite build --mode secondary",
     "lint": "eslint .",
     "preview": "vite preview"
   },

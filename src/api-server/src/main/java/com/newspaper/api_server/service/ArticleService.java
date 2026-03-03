@@ -25,7 +25,7 @@ public class ArticleService {
                 request.writer()
         );
 
-        // 프론트에서 받은 URL 리스트를 순회하며 Image 엔티티 생성
+        // 프론트엔드에서 받은 URL 리스트를 순회하며 Image 엔티티 생성
         if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
             for (String url : request.imageUrls()) {
                 // URL에서 파일명 추출 (단순 저장용)

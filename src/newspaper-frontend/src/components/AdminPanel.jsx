@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { getDisplaySettings, saveDisplaySettings } from "../utils/displaySettings";
+import { getBrandConfig } from "../config/brandConfig";
+import { getBrandSettings, saveBrandSettings } from "../utils/brandSettings";
 
 export default function AdminPanel() {
   const [config, setConfig] = useState({ allowedSenders: [], modificationKeywords: [] });
@@ -25,6 +27,13 @@ export default function AdminPanel() {
   const [display, setDisplay] = useState(getDisplaySettings());
   const [displayForm, setDisplayForm] = useState(getDisplaySettings());
   const [displayDirty, setDisplayDirty] = useState(false);
+
+  // Brand / banner settings (per brand, localStorage)
+  const [brandBase] = useState(getBrandConfig());
+  const [brand, setBrand] = useState(getBrandSettings());
+  const [brandForm, setBrandForm] = useState(getBrandSettings());
+  const [brandDirty, setBrandDirty] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // AI summary loading state per log
   const [summaryLoading, setSummaryLoading] = useState({});
@@ -162,10 +171,45 @@ export default function AdminPanel() {
     alert("\uD45C\uC2DC \uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
   };
 
+  const handleBrandFormChange = (key, value) => {
+    setBrandForm(prev => ({ ...prev, [key]: value }));
+    setBrandDirty(true);
+  };
+
+  const saveBrandConfigLocal = () => {
+    setBrand(brandForm);
+    saveBrandSettings(brandForm);
+    setBrandDirty(false);
+    alert("\uBE0C\uB79C\uB4DC / \uBC30\uB108 \uC124\uC815\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+  };
+
+  const handleBannerImageUpload = async (fieldKey, file) => {
+    if (!file) return;
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/brand-assets", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        throw new Error("\uC5C5\uB85C\uB4DC \uC2E4\uD328");
+      }
+      const data = await res.json();
+      const url = data.url;
+      setBrandForm(prev => ({ ...prev, [fieldKey]: url }));
+      setBrandDirty(true);
+      alert("\uBC30\uB108 \uC774\uBBF8\uC9C0\uAC00 \uC5C5\uB85C\uB4DC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+    } catch (e) {
+      alert("\uC774\uBBF8\uC9C0 \uC5C5\uB85C\uB4DC \uC624\uB958: " + e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   useEffect(() => {
     fetchConfig();
-    fetchScheduleConfig();
-    fetchMailLogs();
   }, []);
 
   const addSender = async (e) => {
@@ -232,237 +276,6 @@ export default function AdminPanel() {
       <h2 className="text-2xl font-black text-gray-900 border-b pb-4">
         {"\uAD00\uB9AC\uC790 \uC124\uC815"}
       </h2>
-
-      {/* ===== Schedule Config ===== */}
-      {!scheduleLoading && scheduleForm && (
-        <section>
-          <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uC2A4\uCF00\uC904 \uC124\uC815"}</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            {"\uBA54\uC77C\uC744 \uAC00\uC838\uC624\uB294 \uBC29\uC2DD\uC744 \uC124\uC815\uD569\uB2C8\uB2E4."}
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Manual */}
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-bold text-blue-900 mb-3">{"\uC218\uB3D9 \uC2E4\uD589"}</h4>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {"\uAC00\uC838\uC62C \uBA54\uC77C \uAC1C\uC218"}
-              </label>
-              <input
-                type="number" min="1" max="100"
-                value={scheduleForm.manualFetchCount}
-                onChange={(e) => handleScheduleChange("manualFetchCount", parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {"\"\uC9C0\uAE08 \uAC00\uC838\uC624\uAE30\" \uBC84\uD2BC \uD074\uB9AD \uC2DC \uCC98\uB9AC\uD560 \uCD5C\uB300 \uBA54\uC77C \uC218"}
-              </p>
-            </div>
-            {/* Auto */}
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <h4 className="font-bold text-green-900 mb-3">{"\uC790\uB3D9 \uC2E4\uD589"}</h4>
-              <label className="flex items-center gap-2 mb-3">
-                <input
-                  type="checkbox"
-                  checked={scheduleForm.autoScheduleEnabled}
-                  onChange={(e) => handleScheduleChange("autoScheduleEnabled", e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm font-medium">{"\uC790\uB3D9 \uC2A4\uCF00\uC904 \uD65C\uC131\uD654"}</span>
-              </label>
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{"\uAC00\uC838\uC62C \uBA54\uC77C \uAC1C\uC218"}</label>
-                  <input
-                    type="number" min="1" max="50"
-                    value={scheduleForm.autoFetchCount}
-                    onChange={(e) => handleScheduleChange("autoFetchCount", parseInt(e.target.value) || 1)}
-                    disabled={!scheduleForm.autoScheduleEnabled}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC2E4\uD589 \uAC04\uACA9 (\uC2DC\uAC04)"}</label>
-                  <input
-                    type="number" min="1" max="24"
-                    value={scheduleForm.autoIntervalHours}
-                    onChange={(e) => handleScheduleChange("autoIntervalHours", parseInt(e.target.value) || 1)}
-                    disabled={!scheduleForm.autoScheduleEnabled}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-            </div>
-            {/* Global Settings */}
-            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 md:col-span-2">
-              <h4 className="font-bold text-purple-900 mb-3">{"\uAE30\uBCF8 \uAE30\uC0AC \uC124\uC815"}</h4>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{"\uAE30\uBCF8 \uAE30\uC790\uBA85"}</label>
-                <input
-                  type="text"
-                  value={scheduleForm.defaultWriter}
-                  onChange={(e) => handleScheduleChange("defaultWriter", e.target.value)}
-                  placeholder="AI Reporter"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <p className="text-xs text-gray-500 mt-1">{"\uAE30\uC0AC \uC0DD\uC131 \uC2DC \uAE30\uBCF8\uC73C\uB85C \uC0AC\uC6A9\uB420 \uAE30\uC790 \uC774\uB984\uC785\uB2C8\uB2E4."}</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={saveScheduleConfig}
-              disabled={!scheduleDirty}
-              className={"px-5 py-2 rounded-lg font-bold text-white " + (scheduleDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed")}
-            >
-              {"\uC2A4\uCF00\uC904 \uC124\uC815 \uC800\uC7A5"}
-            </button>
-            {scheduleDirty && <span className="text-sm text-orange-600 self-center">{"\u2731 \uBCC0\uACBD\uC0AC\uD56D\uC774 \uC788\uC2B5\uB2C8\uB2E4."}</span>}
-          </div>
-        </section>
-      )}
-
-      {/* ===== Fetch Now + Mail Results ===== */}
-      <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uBA54\uC77C \uAC00\uC838\uC624\uAE30 \uBC0F \uCC98\uB9AC \uACB0\uACFC"}</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          {"\uC218\uB3D9\uC73C\uB85C \uBA54\uC77C\uC744 \uAC00\uC838\uC640\uC11C \uCC98\uB9AC \uACB0\uACFC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4. \uAC01 \uD56D\uBAA9\uC758 AI \uC694\uC57D \uBC84\uD2BC\uC73C\uB85C \uAE30\uC0AC\uB97C \uC790\uB3D9 \uC0DD\uC131\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."}
-        </p>
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={runFetchNow}
-            disabled={fetching}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
-          >
-            {fetching ? "\uC2E4\uD589 \uC911..." : "\uC9C0\uAE08 \uAC00\uC838\uC624\uAE30"}
-          </button>
-          <button
-            onClick={fetchMailLogs}
-            className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50"
-          >
-            {"\uC0C8\uB85C\uACE0\uCE68"}
-          </button>
-          <button
-            onClick={clearMailLogs}
-            className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
-          >
-            {"\uBAA8\uB450 \uC9C0\uC6B0\uAE30"}
-          </button>
-        </div>
-
-        {/* Mail Process Results - Card List */}
-        <div className="space-y-3">
-          {mailLogsLoading ? (
-            <div className="p-6 text-center text-gray-500">{"\uB85C\uB529 \uC911..."}</div>
-          ) : mailLogs.length === 0 ? (
-            <div className="p-6 text-center text-gray-400 border border-dashed border-gray-300 rounded-lg">
-              {"\uCC98\uB9AC\uB41C \uBA54\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \"\uC9C0\uAE08 \uAC00\uC838\uC624\uAE30\" \uBC84\uD2BC\uC744 \uB20C\uB7EC\uBCF4\uC138\uC694."}
-            </div>
-          ) : (
-            mailLogs.map((log) => (
-              <div key={log.id} className={"p-4 rounded-xl border " + (log.success ? "border-green-200 bg-green-50/50" : "border-red-200 bg-red-50/50")}>
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      {log.success ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">{"\u2713 \uC131\uACF5"}</span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">{"\u2717 \uC2E4\uD328"}</span>
-                      )}
-                      <span className="text-xs text-gray-500">
-                        {new Date(log.processedDate).toLocaleString("ko-KR")}
-                      </span>
-                    </div>
-                    <h4 className="font-bold text-gray-900 text-base">{log.subject}</h4>
-                    <p className="text-sm text-gray-500 mt-0.5">{"\uBC1C\uC2E0\uC790: " + (log.senderEmail || "-")}</p>
-                    {log.errorMessage && (
-                      <p className="text-sm text-red-600 mt-1">{"\uC624\uB958: " + log.errorMessage}</p>
-                    )}
-                    {log.articleId && (
-                      <p className="text-sm text-blue-600 mt-1">{"\uAE30\uC0AC ID: " + log.articleId}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Attachment Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  {/* Files */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                      <span>{"\uD83D\uDCC2"}</span>
-                      <span>{"\uAC00\uC838\uC628 \uD30C\uC77C"}</span>
-                    </div>
-                    {log.attachments && log.attachments.length > 0 ? (
-                      <ul className="space-y-1">
-                        {log.attachments.map((f, i) => (
-                          <li key={i} className="text-xs text-gray-700 flex items-center gap-1">
-                            <span className="text-gray-400">{"\u2022"}</span>
-                            <span className="break-all">{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-gray-400">{"\uC5C6\uC74C"}</p>
-                    )}
-                  </div>
-
-                  {/* Text */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                      <span>{"\uD83D\uDCC4"}</span>
-                      <span>{"\uCD94\uCD9C\uB41C \uD14D\uC2A4\uD2B8"}</span>
-                    </div>
-                    {log.hwpFileName ? (
-                      <div>
-                        <p className="text-xs text-purple-700 font-medium">{log.hwpFileName}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{"\uBB38\uC11C\uC5D0\uC11C \uD14D\uC2A4\uD2B8 \uCD94\uCD9C\uB428"}</p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-400">{"\uBB38\uC11C \uD30C\uC77C \uC5C6\uC74C (\uBA54\uC77C \uBCF8\uBB38 \uC0AC\uC6A9)"}</p>
-                    )}
-                  </div>
-
-                  {/* Images */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="text-xs font-bold text-gray-600 mb-1.5 flex items-center gap-1">
-                      <span>{"\uD83D\uDDBC\uFE0F"}</span>
-                      <span>{"\uAC00\uC838\uC628 \uC774\uBBF8\uC9C0"}</span>
-                    </div>
-                    {log.imageFileNames && log.imageFileNames.length > 0 ? (
-                      <ul className="space-y-1">
-                        {log.imageFileNames.map((img, i) => (
-                          <li key={i} className="text-xs text-blue-700 flex items-center gap-1">
-                            <span className="text-blue-400">{"\u2022"}</span>
-                            <span className="break-all">{img}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-gray-400">{"\uC5C6\uC74C"}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* AI Summary Button */}
-                {!log.articleId && log.success !== true && (
-                  <button
-                    onClick={() => runAiSummary(log.id)}
-                    disabled={summaryLoading[log.id]}
-                    className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
-                  >
-                    {summaryLoading[log.id] ? "\u2728 AI \uAE30\uC0AC \uC0DD\uC131 \uC911..." : "\u2728 AI \uC694\uC57D\uC73C\uB85C \uAE30\uC0AC \uC0DD\uC131"}
-                  </button>
-                )}
-                {log.articleId && (
-                  <div className="w-full py-2 text-center text-sm text-green-700 bg-green-100 rounded-lg font-medium">
-                    {"\u2713 \uAE30\uC0AC \uC0DD\uC131 \uC644\uB8CC (ID: " + log.articleId + ")"}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </section>
 
       {/* ===== Display Settings ===== */}
       <section>
@@ -540,66 +353,110 @@ export default function AdminPanel() {
         </div>
       </section>
 
-      {/* ===== Sender Whitelist ===== */}
+      {/* ===== Brand / Banner Settings ===== */}
       <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uBCF4\uB0B8\uC0AC\uB78C \uD654\uC774\uD2B8\uB9AC\uC2A4\uD2B8"}</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uBE0C\uB79C\uB4DC / \uBC30\uB108 \uC124\uC815"}</h3>
         <p className="text-sm text-gray-500 mb-4">
-          {"\uC774 \uBAA9\uB85D\uC5D0 \uD3EC\uD568\uB41C \uC774\uBA54\uC77C \uC8FC\uC18C\uB9CC \uAE30\uC0AC\uB85C \uCC98\uB9AC\uD569\uB2C8\uB2E4. \uBE44\uC5B4 \uC788\uC73C\uBA74 \uBAA8\uB4E0 \uBCF4\uB0B8\uC0AC\uB78C \uD5C8\uC6A9."}
+          {"\uD604\uC7AC \uC124\uC815\uC740 \uBE0C\uB79C\uB4DC(\uC2DC\uC11C)\uBCC4\uB85C \uBE14\uB8E8\uC790 \uC800\uC7A5\uB429\uB2C8\uB2E4. \uBAA9\uC18C\uB9AC \uBC0F \uAD11\uACE0 \uBC30\uB108\uB97C \uD3B8\uC9D1\uD569\uB2C8\uB2E4."}
         </p>
-        <form onSubmit={addSender} className="flex gap-2 mb-4">
-          <input
-            type="email"
-            value={senderInput}
-            onChange={(e) => setSenderInput(e.target.value)}
-            placeholder="press@example.com"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
-            {"\uCD94\uAC00"}
-          </button>
-        </form>
-        <ul className="space-y-2">
-          {config.allowedSenders.map((item) => (
-            <li key={item.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-800">{item.email}</span>
-              <button onClick={() => removeSender(item.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">{"\uC0AD\uC81C"}</button>
-            </li>
-          ))}
-          {config.allowedSenders.length === 0 && (
-            <li className="text-gray-400 text-sm py-2">{"\uB4F1\uB85D\uB41C \uBCF4\uB0B8\uC0AC\uB78C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."}</li>
-          )}
-        </ul>
-      </section>
-
-      {/* ===== Modification Keywords ===== */}
-      <section>
-        <h3 className="text-lg font-bold text-gray-800 mb-2">{"\uC218\uC815\uC694\uCCAD \uD0A4\uC6CC\uB4DC"}</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          {"\uC81C\uBAA9\uC5D0 \uD3EC\uD568\uB418\uBA74 \uC218\uC815\uC694\uCCAD\uC73C\uB85C \uC778\uC2DD\uD558\uC5EC \uAE30\uC874 \uAE30\uC0AC \uBCF8\uBB38\uC744 \uAC31\uC2E0\uD569\uB2C8\uB2E4."}
-        </p>
-        <form onSubmit={addKeyword} className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={keywordInput}
-            onChange={(e) => setKeywordInput(e.target.value)}
-            placeholder="[\uC218\uC815\uBC30\uD3EC]"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
-            {"\uCD94\uAC00"}
-          </button>
-        </form>
-        <ul className="space-y-2">
-          {config.modificationKeywords.map((item) => (
-            <li key={item.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-800 font-mono">{item.keyword}</span>
-              <button onClick={() => removeKeyword(item.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">{"\uC0AD\uC81C"}</button>
-            </li>
-          ))}
-          {config.modificationKeywords.length === 0 && (
-            <li className="text-gray-400 text-sm py-2">{"\uB4F1\uB85D\uB41C \uD0A4\uC6CC\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."}</li>
-          )}
-        </ul>
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-4">
+          <div className="text-xs text-gray-500 mb-2">
+            {"\uD604\uC7AC \uBE0C\uB79C\uB4DC: "} 
+            <span className="font-semibold text-gray-700">
+              {brandBase.siteName} ({brandBase.id})
+            </span>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC0AC\uC774\uD2B8 \uC774\uB984 (\uD5E4\uB354 \uBC30\uB108)"}</label>
+            <input
+              type="text"
+              value={brandForm.siteName}
+              onChange={(e) => handleBrandFormChange("siteName", e.target.value)}
+              placeholder={brandBase.siteName}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC0C1\uB2E8 \uAD11\uACE0 \uBC30\uB108 \uBB38\uAD6C"}</label>
+              <input
+                type="text"
+                value={brandForm.sidebarTopText}
+                onChange={(e) => handleBrandFormChange("sidebarTopText", e.target.value)}
+                placeholder={brandBase.adTexts.sidebarTop}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">{"\uC0C1\uB2E8 \uAD11\uACE0 \uC774\uBBF8\uC9C0 URL (\uC120\uD0DD)"}</label>
+              <input
+                type="text"
+                value={brandForm.sidebarTopImageUrl}
+                onChange={(e) => handleBrandFormChange("sidebarTopImageUrl", e.target.value)}
+                placeholder="https://example.com/banner-top.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+              />
+              <div className="mt-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">{"\uC0C1\uB2E8 \uAD11\uACE0 \uC774\uBBF8\uC9C0 \uC5C5\uB85C\uB4DC"}</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleBannerImageUpload("sidebarTopImageUrl", file);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 disabled:opacity-50"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{"\uC138\uB85C \uAE34 \uAD11\uACE0 \uBC30\uB108 \uBB38\uAD6C"}</label>
+              <input
+                type="text"
+                value={brandForm.sidebarLongText}
+                onChange={(e) => handleBrandFormChange("sidebarLongText", e.target.value)}
+                placeholder={brandBase.adTexts.sidebarLong}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">{"\uC138\uB85C \uAE34 \uAD11\uACE0 \uC774\uBBF8\uC9C0 URL (\uC120\uD0DD)"}</label>
+              <input
+                type="text"
+                value={brandForm.sidebarLongImageUrl}
+                onChange={(e) => handleBrandFormChange("sidebarLongImageUrl", e.target.value)}
+                placeholder="https://example.com/banner-long.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+              />
+              <div className="mt-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">{"\uC138\uB85C \uAE34 \uAD11\uACE0 \uC774\uBBF8\uC9C0 \uC5C5\uB85C\uB4DC"}</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleBannerImageUpload("sidebarLongImageUrl", file);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={saveBrandConfigLocal}
+              disabled={!brandDirty}
+              className={"px-5 py-2 rounded-lg font-bold text-white " + (brandDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed")}
+            >
+              {"\uBE0C\uB79C\uB4DC / \uBC30\uB108 \uC124\uC815 \uC800\uC7A5"}
+            </button>
+            {brandDirty && <span className="text-sm text-orange-600 self-center">{"\u2731 \uBCC0\uACBD\uC0AC\uD56D\uC774 \uC788\uC2B5\uB2C8\uB2E4."}</span>}
+          </div>
+        </div>
       </section>
     </div>
   );

@@ -34,7 +34,7 @@ public class S3Config {
                         AwsBasicCredentials.create(accessKey, secretKey)))
                 .endpointOverride(URI.create(endpoint)) // MinIO 주소 (http://localhost:9000)
                 .serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(true) // MinIO는 이 설정이 필수!
+                        .pathStyleAccessEnabled(true) // MinIO에서는 설정이 필수!
                         .build())
                 .build();
     }

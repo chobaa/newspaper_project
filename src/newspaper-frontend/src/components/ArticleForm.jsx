@@ -39,6 +39,16 @@ export default function ArticleForm({ onSave, onCancel }) {
     blotFormatter: {}
   }), []);
 
+  // 폼에 내용이 있으면 전역 플래그로 "작성 중" 표시 (탭 이동 시 경고용)
+  useEffect(() => {
+    const plainText = content.replace(/<[^>]+>/g, "").trim();
+    const dirty = !!(title || plainText);
+    window.__articleDirty = dirty;
+    return () => {
+      window.__articleDirty = false;
+    };
+  }, [title, content]);
+
   useEffect(() => {
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
@@ -131,6 +141,19 @@ export default function ArticleForm({ onSave, onCancel }) {
       author: "관리자",
       img: finalImage
     });
+  };
+
+  const handleCancelClick = () => {
+    const plainText = content.replace(/<[^>]+>/g, "").trim();
+    const dirty = !!(title || plainText);
+    if (dirty) {
+      const ok = window.confirm("작성 중인 내용이 저장되지 않습니다. 나가시겠습니까?");
+      if (!ok) {
+        return;
+      }
+    }
+    window.__articleDirty = false;
+    onCancel();
   };
 
   return (
@@ -228,7 +251,7 @@ export default function ArticleForm({ onSave, onCancel }) {
         )}
 
         <div className="flex justify-end gap-3 pt-4 border-t mt-12">
-          <button type="button" onClick={onCancel} className="px-6 py-3 rounded-lg font-bold text-gray-600 hover:bg-gray-100 transition">취소</button>
+          <button type="button" onClick={handleCancelClick} className="px-6 py-3 rounded-lg font-bold text-gray-600 hover:bg-gray-100 transition">취소</button>
           <button type="submit" className="px-8 py-3 rounded-lg font-bold bg-blue-900 text-white hover:bg-blue-800 shadow-md transition transform hover:scale-105">기사 발행하기</button>
         </div>
       </form>

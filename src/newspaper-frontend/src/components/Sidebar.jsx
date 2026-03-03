@@ -1,15 +1,26 @@
 import AdBanner from "./AdBanner";
 import NewsSlider from "./NewsSlider";
+import { getBrandSettings } from "../utils/brandSettings";
 
 export default function Sidebar() {
+  const brand = getBrandSettings();
+
   return (
     <aside className="space-y-6">
-      {/* 1. 슬라이더 */}
-      <NewsSlider />
+      {/* 1. 광고 배너(항상 상단) */}
+      <AdBanner
+        height="h-[250px]"
+        text={brand.sidebarTopText}
+        imageUrl={brand.sidebarTopImageUrl}
+      />
+      <AdBanner
+        height="h-[600px]"
+        text={brand.sidebarLongText}
+        imageUrl={brand.sidebarLongImageUrl}
+      />
 
-      {/* 2. 광고들 */}
-      <AdBanner height="h-[250px]" text="스퀘어 배너 광고 1" />
-      <AdBanner height="h-[600px]" text="세로형 긴 배너 광고" />
+      {/* 2. 뉴스 슬라이더 */}
+      <NewsSlider />
     </aside>
   );
 }

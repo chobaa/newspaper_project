@@ -14,7 +14,7 @@ public class AllowedSender {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String email; // 허용할 보낸사람 이메일 주소
+    private String email; // 허용된 보낸사람 이메일 주소
 
     public AllowedSender(String email) {
         this.email = email;
