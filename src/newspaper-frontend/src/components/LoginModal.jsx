@@ -7,15 +7,24 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
 
   if (!isOpen) return null; // 창이 닫혀있으면 아무것도 안 그림
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // 실제로는 백엔드 통신을 하겠지만, 지금은 admin / 1234 입력 시 성공 처리
-    if (id === "admin" && password === "1234") {
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, password }),
+      });
+
+      if (!res.ok) {
+        throw new Error("아이디 또는 비밀번호가 틀렸습니다.");
+      }
+
       alert("관리자로 로그인되었습니다.");
-      onLogin(); // App.jsx에 "로그인 성공했어!"라고 알림
-      onClose(); // 창 닫기
-    } else {
-      alert("아이디 또는 비밀번호가 틀렸습니다. (힌트: admin / 1234)");
+      onLogin();
+      onClose();
+    } catch (err) {
+      alert(err.message || "로그인에 실패했습니다.");
     }
   };
 
@@ -40,7 +49,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
 
         <div className="text-center mb-8">
           <h2 className="text-2xl font-black text-blue-900">관리자 로그인</h2>
-          <p className="text-gray-500 text-sm mt-2">아이디: admin / 비번: 1234</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

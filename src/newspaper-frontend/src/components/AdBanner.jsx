@@ -8,11 +8,13 @@ export default function AdBanner({ height = "h-64", text = "광고 배너", imag
       }`}
     >
       {hasImage ? (
-        <img
-          src={imageUrl}
-          alt={text}
-          className="w-full h-full object-cover"
-        />
+        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+          <img
+            src={imageUrl}
+            alt={text}
+            className="max-h-full max-w-full w-full object-contain"
+          />
+        </div>
       ) : (
         <>
           <span className="font-bold text-gray-500">AD</span>

@@ -8,6 +8,7 @@ import AdminPanel from "../components/AdminPanel";
 
 export default function Home() {
   const [category, setCategory] = useState("전체");
+  const [categoryVersion, setCategoryVersion] = useState(0);
   const [isAdmin, setIsAdmin] = useState(() => {
     return localStorage.getItem("isAdmin") === "true";
   });
@@ -38,6 +39,8 @@ export default function Home() {
     // 카테고리를 바꾸면 검색어는 초기화
     setSearch("");
     setCategory(nextCategory);
+    // 동일 카테고리를 다시 눌러도 리스트 뷰로 돌아가도록 버전 증가
+    setCategoryVersion((v) => v + 1);
   };
 
   return (
@@ -61,7 +64,12 @@ export default function Home() {
           {category === "관리자" && isAdmin ? (
             <AdminPanel />
           ) : (
-            <NewsSection category={category} isAdmin={isAdmin} search={search} />
+            <NewsSection
+              category={category}
+              categoryVersion={categoryVersion}
+              isAdmin={isAdmin}
+              search={search}
+            />
           )}
         </div>
         <div className="lg:col-span-3">

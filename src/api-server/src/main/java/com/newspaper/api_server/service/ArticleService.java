@@ -74,6 +74,29 @@ public class ArticleService {
         article.updateContent(newContent);
     }
 
+    // 7. 기사 전체 수정 (제목/카테고리/본문/기자/이미지 포함)
+    @Transactional
+    public void updateArticle(Long id, ArticleSaveRequest request) {
+        Article article = articleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
+
+        article.updateBasic(
+                request.title(),
+                request.category(),
+                request.content(),
+                request.writer()
+        );
+
+        // 이미지 목록 교체
+        article.clearImages();
+        if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
+            for (String url : request.imageUrls()) {
+                String originalName = url.substring(url.lastIndexOf("/") + 1);
+                Image image = new Image(url, originalName, article);
+                article.addImage(image);
+            }
+        }
+    }
     // 6. 제목 포함 검색 (수정요청 매칭용)
     @Transactional(readOnly = true)
     public java.util.Optional<Article> findFirstByTitleContainingOrderByIdDesc(String titlePart) {

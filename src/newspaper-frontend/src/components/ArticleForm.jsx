@@ -10,10 +10,10 @@ const fontSizeArr = ["10px", "11px", "12px", "13px", "14px", "16px", "18px", "20
 Size.whitelist = fontSizeArr;
 Quill.register(Size, true);
 
-export default function ArticleForm({ onSave, onCancel }) {
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("정치");
-  const [content, setContent] = useState("");
+export default function ArticleForm({ onSave, onCancel, initialArticle }) {
+  const [title, setTitle] = useState(initialArticle?.title || "");
+  const [category, setCategory] = useState(initialArticle?.category || "정치");
+  const [content, setContent] = useState(initialArticle?.content || "");
 
   // 에디터 접근을 위한 Ref
   const quillRef = useRef(null);
@@ -38,6 +38,15 @@ export default function ArticleForm({ onSave, onCancel }) {
     },
     blotFormatter: {}
   }), []);
+
+  // 수정 모드에서 initialArticle 이 바뀌면 폼 값도 동기화
+  useEffect(() => {
+    if (initialArticle) {
+      setTitle(initialArticle.title || "");
+      setCategory(initialArticle.category || "정치");
+      setContent(initialArticle.content || "");
+    }
+  }, [initialArticle]);
 
   // 폼에 내용이 있으면 전역 플래그로 "작성 중" 표시 (탭 이동 시 경고용)
   useEffect(() => {
@@ -124,22 +133,14 @@ export default function ArticleForm({ onSave, onCancel }) {
       return;
     }
 
-    let thumbnail = null;
-    const imgTagMatch = content.match(/<img[^>]+src="([^">]+)"/);
-    if (imgTagMatch && imgTagMatch[1]) {
-      thumbnail = imgTagMatch[1];
-    }
-
-    const finalImage = thumbnail || `https://picsum.photos/300/200?random=${Date.now()}`;
-
     onSave({
+      id: initialArticle?.id,
       title,
       category,
       desc: plainText.slice(0, 100) + (plainText.length > 100 ? "..." : ""),
-      content: content,
-      date: new Date().toLocaleDateString(),
-      author: "관리자",
-      img: finalImage
+      content,
+      date: initialArticle?.date || new Date().toLocaleDateString(),
+      author: initialArticle?.author || "관리자",
     });
   };
 
@@ -158,7 +159,9 @@ export default function ArticleForm({ onSave, onCancel }) {
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-sm animate-[fadeIn_0.3s_ease-out]">
-      <h2 className="text-2xl font-black text-gray-900 mb-6 border-b pb-4">기사 작성</h2>
+      <h2 className="text-2xl font-black text-gray-900 mb-6 border-b pb-4">
+        {initialArticle ? "기사 수정" : "기사 작성"}
+      </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
 

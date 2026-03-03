@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { getBrandSettings } from "../utils/brandSettings";
 
-export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSearchChange }) {
+export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSearchChange, showLogin = true }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const brand = getBrandSettings();
@@ -66,15 +66,18 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
             )}
           </button>
 
-          <button
-            onClick={onLoginClick}
-            className={`hidden sm:block px-4 py-2 rounded-full text-sm font-bold transition ml-2 whitespace-nowrap ${isAdmin
-                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                : "bg-black text-white hover:bg-gray-800"
+          {showLogin && onLoginClick && (
+            <button
+              onClick={onLoginClick}
+              className={`hidden sm:block px-4 py-2 rounded-full text-sm font-bold transition ml-2 whitespace-nowrap ${
+                isAdmin
+                  ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  : "bg-black text-white hover:bg-gray-800"
               }`}
-          >
-            {isAdmin ? "로그아웃" : "관리자 로그인"}
-          </button>
+            >
+              {isAdmin ? "로그아웃" : "관리자 로그인"}
+            </button>
+          )}
         </div>
       </div>
 

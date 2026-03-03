@@ -17,19 +17,22 @@ export default function NewsSlider() {
           return;
         }
         const data = await res.json();
-        const mapped = data.map((a) => {
-          const firstImage =
-            a.imageUrls && a.imageUrls.length > 0
-              ? a.imageUrls[0]
-              : `https://picsum.photos/400/250?random=${a.id}`;
-          return {
-            id: a.id,
-            title: a.title,
-            img: firstImage,
-            viewCount: a.viewCount || 0,
-            regDate: a.regDate,
-          };
-        });
+        // 본문 HTML에서 첫 번째 <img>를 찾은 기사만 사용
+        const mapped = data
+          .map((a) => {
+            const imgMatch = a.content
+              ? a.content.match(/<img[^>]+src="([^">]+)"/)
+              : null;
+            const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
+            return {
+              id: a.id,
+              title: a.title,
+              img: firstImage,
+              viewCount: a.viewCount || 0,
+              regDate: a.regDate,
+            };
+          })
+          .filter((a) => !!a.img); // 이미지가 있는 기사만 슬라이더에 노출
 
         const popular = [...mapped]
           .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))

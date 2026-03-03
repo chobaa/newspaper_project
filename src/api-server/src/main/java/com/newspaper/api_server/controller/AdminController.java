@@ -7,9 +7,11 @@ import com.newspaper.api_server.service.AgentLogService;
 import com.newspaper.api_server.service.ImageService;
 import com.newspaper.api_server.service.ScheduleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,6 +32,19 @@ public class AdminController {
     private final AgentLogService agentLogService;
     private final ScheduleService scheduleService;
     private final ImageService imageService;
+
+    // ========== 관리자 로그인 (간단 하드코딩) ==========
+
+    @PostMapping("/api/admin/login")
+    public Map<String, String> adminLogin(@RequestBody Map<String, String> body) {
+        String id = body.get("id");
+        String password = body.get("password");
+
+        if ("admin".equals(id) && "8593".equals(password)) {
+            return Map.of("result", "OK");
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
+    }
 
     // ========== 에이전트 설정 ==========
 

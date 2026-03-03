@@ -10,6 +10,13 @@ const buildDefault = () => {
     sidebarTopImageUrl: "",
     sidebarLongText: brand.adTexts.sidebarLong,
     sidebarLongImageUrl: "",
+    // 배너 기본 표시 여부
+    showSidebarTop: true,
+    showSidebarLong: true,
+    // 하단 띠 배너 기본 값
+    bottomBannerText: "하단 띠 배너 광고",
+    bottomBannerImageUrl: "",
+    showBottomBanner: true,
   };
 };
 
