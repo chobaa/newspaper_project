@@ -4,6 +4,7 @@ import com.newspaper.api_server.dto.AgentConfigDto;
 import com.newspaper.api_server.dto.ScheduleDto;
 import com.newspaper.api_server.service.AgentConfigService;
 import com.newspaper.api_server.service.AgentLogService;
+import com.newspaper.api_server.service.BrandSettingsService;
 import com.newspaper.api_server.service.ImageService;
 import com.newspaper.api_server.service.ScheduleService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class AdminController {
     private final AgentLogService agentLogService;
     private final ScheduleService scheduleService;
     private final ImageService imageService;
+    private final BrandSettingsService brandSettingsService;
 
     // ========== 관리자 로그인 (간단 하드코딩) ==========
 
@@ -135,5 +137,16 @@ public class AdminController {
     @DeleteMapping("/api/admin/brand-assets")
     public void deleteBrandAsset(@RequestParam("url") String url) {
         imageService.deleteImageByUrl(url);
+    }
+
+    // ========== 브랜드 설정 (로고/배너) ==========
+
+    @PutMapping("/api/admin/brand-settings")
+    public Map<String, Object> updateBrandSettings(@RequestBody Map<String, Object> body) {
+        String brandId = (String) body.get("brandId");
+        if (brandId == null || brandId.isBlank()) {
+            throw new IllegalArgumentException("brandId는 필수입니다.");
+        }
+        return brandSettingsService.updateSettings(brandId, body);
     }
 }
