@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getDisplaySettings, saveDisplaySettings } from "../utils/displaySettings";
 import { getBrandConfig } from "../config/brandConfig";
-import { getBrandSettings, saveBrandSettings } from "../utils/brandSettings";
+import { useBrandSettings } from "../context/BrandSettingsContext";
 
 export default function AdminPanel() {
   const [config, setConfig] = useState({ allowedSenders: [], modificationKeywords: [] });
@@ -28,10 +28,10 @@ export default function AdminPanel() {
   const [displayForm, setDisplayForm] = useState(getDisplaySettings());
   const [displayDirty, setDisplayDirty] = useState(false);
 
-  // Brand / banner settings (per brand, localStorage)
+  // Brand / banner settings (API)
+  const { settings: brand, save: saveBrandToApi } = useBrandSettings();
   const [brandBase] = useState(getBrandConfig());
-  const [brand, setBrand] = useState(getBrandSettings());
-  const [brandForm, setBrandForm] = useState(getBrandSettings());
+  const [brandForm, setBrandForm] = useState({});
   const [brandDirty, setBrandDirty] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -174,12 +174,21 @@ export default function AdminPanel() {
     setBrandDirty(true);
   };
 
-  const saveBrandConfigLocal = () => {
-    setBrand(brandForm);
-    saveBrandSettings(brandForm);
-    setBrandDirty(false);
-    alert("브랜드 / 배너 설정이 저장되었습니다.");
+  const saveBrandConfigLocal = async () => {
+    try {
+      await saveBrandToApi(brandForm);
+      setBrandDirty(false);
+      alert("브랜드 / 배너 설정이 저장되었습니다.");
+    } catch (e) {
+      alert("저장 실패: " + e.message);
+    }
   };
+
+  useEffect(() => {
+    if (Object.keys(brand).length > 0) {
+      setBrandForm(brand);
+    }
+  }, [brand]);
 
   const handleBannerImageUpload = async (fieldKey, file) => {
     if (!file) return;
@@ -188,7 +197,8 @@ export default function AdminPanel() {
       const formData = new FormData();
       // 배너 위치에 따라 파일 이름에 키워드를 넣어준다
       let baseName = "banner";
-      if (fieldKey === "sidebarTopImageUrl") baseName = "sidebar-top";
+      if (fieldKey === "logoImageUrl") baseName = "logo";
+      else if (fieldKey === "sidebarTopImageUrl") baseName = "sidebar-top";
       else if (fieldKey === "sidebarLongImageUrl") baseName = "sidebar-long";
       else if (fieldKey === "bottomBannerImageUrl") baseName = "bottom-banner";
 
@@ -358,7 +368,7 @@ export default function AdminPanel() {
           <button
             onClick={saveDisplayConfig}
             disabled={!displayDirty}
-            className={`px-5 py-2 rounded-lg font-bold text-white ${displayDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"}`}
+            className={`px-5 py-2 rounded-lg font-bold text-white ${displayDirty ? "bg-[var(--brand-600)] hover:bg-[var(--brand-700)]" : "bg-gray-300 cursor-not-allowed"}`}
           >
             표시 설정 저장
           </button>
@@ -370,7 +380,7 @@ export default function AdminPanel() {
       <section>
         <h3 className="text-lg font-bold text-gray-800 mb-2">브랜드 / 배너 설정</h3>
         <p className="text-sm text-gray-500 mb-4">
-          현재 설정은 브랜드(사이트)별로 로컬에 저장됩니다. 목소리 및 광고 배너를 편집합니다.
+          현재 설정은 브랜드(사이트)별로 서버에 저장됩니다. 로고 및 광고 배너를 편집합니다.
         </p>
         <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-4">
           <div className="text-xs text-gray-500 mb-2">
@@ -380,18 +390,58 @@ export default function AdminPanel() {
             <label className="block text-sm font-medium text-gray-700 mb-1">사이트 이름 (헤더 배너)</label>
             <input
               type="text"
-              value={brandForm.siteName}
+              value={brandForm.siteName ?? brand?.siteName ?? ""}
               onChange={(e) => handleBrandFormChange("siteName", e.target.value)}
               placeholder={brandBase.siteName}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">헤더 로고 이미지</label>
+            <p className="text-xs text-gray-500 mb-2">로고와 사이트 이름이 함께 있는 이미지를 올리세요. 업로드 시 기존 아이콘·텍스트 대신 이 이미지만 표시됩니다.</p>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={brandForm.logoImageUrl || ""}
+                onChange={(e) => handleBrandFormChange("logoImageUrl", e.target.value)}
+                placeholder="https://example.com/logo.png"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleBannerImageUpload("logoImageUrl", file);
+                    e.target.value = "";
+                  }
+                }}
+                className="text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
+              />
+            </div>
+            {brandForm.logoImageUrl && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="w-12 h-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                  <img src={brandForm.logoImageUrl} alt="로고 미리보기" className="max-h-full max-w-full object-contain" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleBrandFormChange("logoImageUrl", "")}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded text-red-600 hover:bg-red-50"
+                >
+                  제거
+                </button>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">상단 광고 배너 문구</label>
               <input
                 type="text"
-                value={brandForm.sidebarTopText}
+                value={brandForm.sidebarTopText ?? brand?.sidebarTopText ?? ""}
                 onChange={(e) => handleBrandFormChange("sidebarTopText", e.target.value)}
                 placeholder={brandBase.adTexts.sidebarTop}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -400,16 +450,16 @@ export default function AdminPanel() {
                 <input
                   id="show-sidebar-top"
                   type="checkbox"
-                  checked={brandForm.showSidebarTop}
+                  checked={brandForm.showSidebarTop ?? brand?.showSidebarTop ?? true}
                   onChange={(e) => handleBrandFormChange("showSidebarTop", e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="h-4 w-4 border-gray-300 rounded text-[var(--brand-600)]"
                 />
                 <label htmlFor="show-sidebar-top" className="text-xs text-gray-700">이 상단 배너를 화면에 표시</label>
               </div>
               <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">상단 광고 이미지 URL (선택)</label>
               <input
                 type="text"
-                value={brandForm.sidebarTopImageUrl}
+                value={brandForm.sidebarTopImageUrl ?? ""}
                 onChange={(e) => handleBrandFormChange("sidebarTopImageUrl", e.target.value)}
                 placeholder="https://example.com/banner-top.jpg"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
@@ -427,7 +477,7 @@ export default function AdminPanel() {
                       e.target.value = "";
                     }
                   }}
-                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 disabled:opacity-50"
+                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
                 />
               </div>
             </div>
@@ -435,7 +485,7 @@ export default function AdminPanel() {
               <label className="block text-sm font-medium text-gray-700 mb-1">세로 긴 광고 배너 문구</label>
               <input
                 type="text"
-                value={brandForm.sidebarLongText}
+                value={brandForm.sidebarLongText ?? brand?.sidebarLongText ?? ""}
                 onChange={(e) => handleBrandFormChange("sidebarLongText", e.target.value)}
                 placeholder={brandBase.adTexts.sidebarLong}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -444,16 +494,16 @@ export default function AdminPanel() {
                 <input
                   id="show-sidebar-long"
                   type="checkbox"
-                  checked={brandForm.showSidebarLong}
+                  checked={brandForm.showSidebarLong ?? brand?.showSidebarLong ?? true}
                   onChange={(e) => handleBrandFormChange("showSidebarLong", e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="h-4 w-4 border-gray-300 rounded text-[var(--brand-600)]"
                 />
                 <label htmlFor="show-sidebar-long" className="text-xs text-gray-700">이 세로형 배너를 화면에 표시</label>
               </div>
               <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">세로 긴 광고 이미지 URL (선택)</label>
               <input
                 type="text"
-                value={brandForm.sidebarLongImageUrl}
+                value={brandForm.sidebarLongImageUrl ?? ""}
                 onChange={(e) => handleBrandFormChange("sidebarLongImageUrl", e.target.value)}
                 placeholder="https://example.com/banner-long.jpg"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
@@ -471,7 +521,7 @@ export default function AdminPanel() {
                       e.target.value = "";
                     }
                   }}
-                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 disabled:opacity-50"
+                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
                 />
               </div>
             </div>
@@ -483,7 +533,7 @@ export default function AdminPanel() {
               <label className="block text-sm font-medium text-gray-700 mb-1">하단 띠 배너 문구</label>
               <input
                 type="text"
-                value={brandForm.bottomBannerText}
+                value={brandForm.bottomBannerText ?? brand?.bottomBannerText ?? ""}
                 onChange={(e) => handleBrandFormChange("bottomBannerText", e.target.value)}
                 placeholder="하단 띠 배너 광고"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -493,9 +543,9 @@ export default function AdminPanel() {
               <input
                 id="show-bottom-banner"
                 type="checkbox"
-                checked={brandForm.showBottomBanner}
+                checked={brandForm.showBottomBanner ?? brand?.showBottomBanner ?? true}
                 onChange={(e) => handleBrandFormChange("showBottomBanner", e.target.checked)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                className="h-4 w-4 border-gray-300 rounded text-[var(--brand-600)]"
               />
               <label htmlFor="show-bottom-banner" className="text-xs text-gray-700">이 하단 띠 배너를 화면에 표시</label>
             </div>
@@ -503,7 +553,7 @@ export default function AdminPanel() {
               <label className="block text-xs font-medium text-gray-500 mb-1">하단 띠 배너 이미지 URL (선택)</label>
               <input
                 type="text"
-                value={brandForm.bottomBannerImageUrl}
+                value={brandForm.bottomBannerImageUrl ?? ""}
                 onChange={(e) => handleBrandFormChange("bottomBannerImageUrl", e.target.value)}
                 placeholder="https://example.com/banner-bottom.jpg"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
@@ -513,9 +563,28 @@ export default function AdminPanel() {
 
           {/* 현재 사용 중인 배너 이미지 리스트 */}
           <div className="mt-6 border-t border-gray-200 pt-4">
-            <h4 className="text-sm font-bold text-gray-800 mb-2">배너 이미지 목록</h4>
-            <p className="text-xs text-gray-500 mb-3">현재 각 배너에 설정된 이미지 목록입니다.</p>
+            <h4 className="text-sm font-bold text-gray-800 mb-2">배너 / 로고 이미지 목록</h4>
+            <p className="text-xs text-gray-500 mb-3">현재 각 배너 및 로고에 설정된 이미지 목록입니다.</p>
             <div className="space-y-3">
+              {/* 헤더 로고 */}
+              {brandForm.logoImageUrl && (
+                <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
+                  <div className="w-16 h-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                    <img src={brandForm.logoImageUrl} alt="헤더 로고" className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800">헤더 로고</div>
+                    <div className="text-[10px] text-gray-500 truncate">{brandForm.logoImageUrl}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleBrandFormChange("logoImageUrl", "")}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded text-red-600 hover:bg-red-50"
+                  >
+                    제거
+                  </button>
+                </div>
+              )}
               {/* 상단 배너 */}
               {brandForm.sidebarTopImageUrl && (
                 <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
@@ -576,8 +645,8 @@ export default function AdminPanel() {
                 </div>
               )}
 
-              {!brandForm.sidebarTopImageUrl && !brandForm.sidebarLongImageUrl && !brandForm.bottomBannerImageUrl && (
-                <div className="text-xs text-gray-400">등록된 배너 이미지가 없습니다.</div>
+              {!brandForm.logoImageUrl && !brandForm.sidebarTopImageUrl && !brandForm.sidebarLongImageUrl && !brandForm.bottomBannerImageUrl && (
+                <div className="text-xs text-gray-400">등록된 배너/로고 이미지가 없습니다.</div>
               )}
             </div>
           </div>
@@ -585,7 +654,7 @@ export default function AdminPanel() {
             <button
               onClick={saveBrandConfigLocal}
               disabled={!brandDirty}
-              className={`px-5 py-2 rounded-lg font-bold text-white ${brandDirty ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed"}`}
+              className={`px-5 py-2 rounded-lg font-bold text-white ${brandDirty ? "bg-[var(--brand-600)] hover:bg-[var(--brand-700)]" : "bg-gray-300 cursor-not-allowed"}`}
             >
               브랜드 / 배너 설정 저장
             </button>

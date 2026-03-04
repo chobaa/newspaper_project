@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"; // ✅ 페이지 이동 훅 추�
 import Widget from "./Widget";
 import ArticleForm from "./ArticleForm";
 import AdBanner from "./AdBanner";
-import { getBrandSettings } from "../utils/brandSettings";
+import { useBrandSettings } from "../context/BrandSettingsContext";
 
 const PAGE_SIZE = 10;
 
@@ -14,7 +14,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("");
   const navigate = useNavigate(); // ✅ 이동 함수 생성
-  const brand = getBrandSettings();
+  const { settings: brand } = useBrandSettings();
 
   useEffect(() => {
     // 백엔드에서 실제 기사 목록 불러오기
@@ -233,7 +233,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
               )}
               <div className="flex-1 min-w-0 flex flex-col justify-between">
                 <div>
-                  <h4 className="font-bold text-sm md:text-base text-gray-900 mb-1 group-hover:text-blue-700 line-clamp-2 break-all">
+                  <h4 className="font-bold text-sm md:text-base text-gray-900 mb-1 line-clamp-2 break-all group-hover:text-[var(--brand-700)]">
                     {item.title}
                   </h4>
                   <p className="text-xs md:text-sm text-gray-500 line-clamp-2 break-all">
@@ -241,7 +241,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                   </p>
                 </div>
                 <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold">
+                  <span className="px-2 py-0.5 rounded-full font-semibold bg-[var(--brand-50)] text-[var(--brand-700)]">
                     {item.category}
                   </span>
                   <span>{item.date}</span>
@@ -282,7 +282,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
       <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
         <div className="flex justify-between items-end border-b-2 border-gray-900 pb-3 mb-6">
           <h2 className="text-3xl font-black text-gray-900">
-            <span className="text-blue-600">{category}</span> 뉴스
+            <span className="text-[var(--brand-600)]">{category}</span> 뉴스
           </h2>
           {isAdmin && !isWriting && (
             <button
@@ -290,7 +290,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                 setIsWriting(true);
                 setEditingArticle(null);
               }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md flex items-center gap-2 transition-transform hover:scale-105"
+              className="text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md flex items-center gap-2 transition-transform hover:scale-105 bg-[var(--brand-600)] hover:bg-[var(--brand-700)]"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg> 새 기사 작성
             </button>
@@ -317,12 +317,12 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                 {news.img && (
                   <div className="w-full sm:w-48 h-32 bg-gray-200 rounded-lg overflow-hidden shrink-0 relative">
                     <img src={news.img} alt="news" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <span className="absolute top-2 left-2 bg-blue-600/90 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm">{news.category}</span>
+                    <span className="absolute top-2 left-2 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm bg-[var(--brand-600)]/90">{news.category}</span>
                   </div>
                 )}
                 <div className="flex-1 flex flex-col justify-between py-1">
                   <div>
-                  <h3 className="font-bold text-xl text-gray-900 leading-tight mb-2 group-hover:text-blue-600 transition-colors break-all">
+                  <h3 className="font-bold text-xl text-gray-900 leading-tight mb-2 transition-colors break-all group-hover:text-[var(--brand-600)]">
                     {news.title}
                   </h3>
                   <p className="text-sm text-gray-500 line-clamp-2 break-all">
@@ -330,11 +330,11 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                   </p>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <div className="text-xs text-gray-400 font-medium"><span className="text-blue-500">{news.author}</span> • <span>{news.date}</span></div>
+                    <div className="text-xs text-gray-400 font-medium"><span className="text-[var(--brand-500)]">{news.author}</span> • <span>{news.date}</span></div>
                     {isAdmin && (
                       <div className="flex gap-2">
                         <button
-                          className="text-xs border border-gray-200 bg-white px-2 py-1 rounded hover:bg-blue-50 text-blue-600"
+                          className="text-xs border border-gray-200 bg-white px-2 py-1 rounded hover:bg-[var(--brand-50)] text-[var(--brand-600)]"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditingArticle(news);
@@ -380,7 +380,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                       onClick={() => setPage(p)}
                       className={`min-w-[32px] px-2 py-1 rounded border text-sm ${
                         p === safePage
-                          ? "bg-blue-600 text-white border-blue-600"
+                          ? "text-white border-[var(--brand-600)] bg-[var(--brand-600)]"
                           : "text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
@@ -472,7 +472,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
               )}
               <div className="flex-1 flex flex-col justify-between min-w-0">
                 <div>
-                  <span className="inline-block px-3 py-1 mb-3 text-xs font-bold text-white bg-blue-600 rounded-full">
+                  <span className="inline-block px-3 py-1 mb-3 text-xs font-bold text-white rounded-full bg-[var(--brand-600)]">
                     HEADLINE · {headline.category}
                   </span>
                   <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3 leading-tight line-clamp-2">

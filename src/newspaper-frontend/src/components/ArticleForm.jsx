@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import ReactQuill, { Quill } from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 
+import { getDisplaySettings } from "../utils/displaySettings";
 import BlotFormatter from 'quill-blot-formatter';
 Quill.register('modules/blotFormatter', BlotFormatter);
 
@@ -10,10 +11,34 @@ const fontSizeArr = ["10px", "11px", "12px", "13px", "14px", "16px", "18px", "20
 Size.whitelist = fontSizeArr;
 Quill.register(Size, true);
 
+// 글꼴 whitelist 등록 (관리자 보기 설정과 동일한 글꼴)
+const Font = Quill.import("attributors/class/font");
+const fontArr = ["", "noto-sans-kr", "nanum-myeongjo", "georgia", "malgun-gothic"];
+Font.whitelist = fontArr;
+Quill.register(Font, true);
+
+// 글 간격(줄간격) - 등록 실패 시 앱은 정상 동작 (try-catch)
+const lineHeightArr = ["", "1.4", "1.6", "1.8", "2", "2.2"];
+let lineHeightOk = false;
+try {
+  const Parchment = Quill.import("parchment");
+  const LineHeightStyle = new Parchment.Attributor.Style("lineHeight", "line-height", {
+    scope: Parchment.Scope.INLINE,
+    whitelist: lineHeightArr.filter(Boolean),
+  });
+  Quill.register(LineHeightStyle, true);
+  lineHeightOk = true;
+} catch (_) {
+  /* 줄간격 툴바 없이 계속 진행 */
+}
+
 export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   const [title, setTitle] = useState(initialArticle?.title || "");
   const [category, setCategory] = useState(initialArticle?.category || "정치");
   const [content, setContent] = useState(initialArticle?.content || "");
+
+  // 관리자 보기 설정 적용 (기본값: inherit, 1.125rem, 100%, 1.8)
+  const display = getDisplaySettings();
 
   // 에디터 접근을 위한 Ref
   const quillRef = useRef(null);
@@ -27,7 +52,8 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     toolbar: {
       container: [
         [{ 'size': fontSizeArr }],
-        [{ 'font': [] }],
+        [{ 'font': fontArr }],
+        ...(lineHeightOk ? [[{ 'lineHeight': lineHeightArr }]] : []),
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'color': [] }, { 'background': [] }],
         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
@@ -57,6 +83,45 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
       window.__articleDirty = false;
     };
   }, [title, content]);
+
+  useEffect(() => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+
+    // 붙여넣기 시 관리자 설정(글꼴/크기/줄간격)으로 자동 정규화 (bold 등 외부 서식 제거)
+    const Delta = Quill.import("delta");
+    const fontMap = {
+      "inherit": "",
+      "'Noto Sans KR', sans-serif": "noto-sans-kr",
+      "'Nanum Myeongjo', serif": "nanum-myeongjo",
+      "Georgia, serif": "georgia",
+      "'Malgun Gothic', sans-serif": "malgun-gothic",
+    };
+    const sizeMap = {
+      "0.625rem": "10px", "0.75rem": "12px", "0.875rem": "14px",
+      "1rem": "16px", "1.125rem": "18px", "1.25rem": "20px", "1.5rem": "24px",
+    };
+
+    const pasteMatcher = (node, delta) => {
+      const display = getDisplaySettings();
+      const attrs = {};
+      const fontVal = fontMap[display.fontFamily];
+      if (fontVal !== undefined && fontVal !== "") attrs.font = fontVal;
+      const sizeVal = sizeMap[display.fontSize];
+      if (sizeVal) attrs.size = sizeVal;
+      if (lineHeightOk && display.lineHeight) attrs.lineHeight = display.lineHeight;
+
+      const ops = delta.ops.map((op) => {
+        if (typeof op.insert === "string") {
+          return { insert: op.insert, attributes: Object.keys(attrs).length ? attrs : undefined };
+        }
+        return op; // 이미지 등 embed는 그대로
+      });
+      return new Delta({ ops });
+    };
+
+    editor.clipboard.addMatcher(Node.ELEMENT_NODE, pasteMatcher);
+  }, []);
 
   useEffect(() => {
     const editor = quillRef.current?.getEditor();
@@ -171,7 +236,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
             >
               <option value="정치">정치</option>
               <option value="경제">경제</option>
@@ -190,14 +255,14 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="제목을 입력하세요"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-lg"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] font-bold text-lg"
             />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-2">기사 내용</label>
-          <div className="h-[500px] mb-12">
+          <div className="article-form-editor h-[500px] mb-12">
             <ReactQuill
               ref={quillRef}
               theme="snow"
@@ -222,7 +287,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
                   onChange={(e) => setKeepRatio(e.target.checked)}
                   className="w-4 h-4 cursor-pointer"
                 />
-                <label htmlFor="ratioCheck" className="text-sm cursor-pointer select-none font-medium text-blue-800">
+                <label htmlFor="ratioCheck" className="text-sm cursor-pointer select-none font-medium text-[var(--brand-800)]">
                   비율 유지 (Auto)
                 </label>
             </div>
@@ -234,7 +299,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
                 value={imgSize.width}
                 onChange={handleSizeChange}
                 placeholder="너비"
-                className="border p-1 w-20 rounded text-center focus:ring-2 focus:ring-blue-400 outline-none"
+                className="border p-1 w-20 rounded text-center focus:ring-2 focus:ring-[var(--brand-500)] outline-none"
               />
             </div>
 
@@ -246,7 +311,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
                 value={imgSize.height}
                 onChange={handleSizeChange}
                 placeholder="높이"
-                className="border p-1 w-20 rounded text-center focus:ring-2 focus:ring-blue-400 outline-none"
+                className="border p-1 w-20 rounded text-center focus:ring-2 focus:ring-[var(--brand-500)] outline-none"
               />
             </div>
             <p className="text-xs text-gray-500 ml-auto">* 값을 입력하면 즉시 반영됩니다.</p>
@@ -255,16 +320,55 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
 
         <div className="flex justify-end gap-3 pt-4 border-t mt-12">
           <button type="button" onClick={handleCancelClick} className="px-6 py-3 rounded-lg font-bold text-gray-600 hover:bg-gray-100 transition">취소</button>
-          <button type="submit" className="px-8 py-3 rounded-lg font-bold bg-blue-900 text-white hover:bg-blue-800 shadow-md transition transform hover:scale-105">기사 발행하기</button>
+          <button type="submit" className="px-8 py-3 rounded-lg font-bold text-white shadow-md transition transform hover:scale-105 bg-[var(--brand-900)] hover:bg-[var(--brand-800)]">기사 발행하기</button>
         </div>
       </form>
 
       <style>{`
         .ql-container { font-size: 11px; border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
         .ql-toolbar { border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; }
-        .ql-editor { min-height: 300px; font-family: sans-serif; line-height: 1.6; color: #333; }
+        .article-form-editor .ql-editor {
+          min-height: 300px;
+          font-family: ${display.fontFamily};
+          font-size: ${display.fontSize};
+          line-height: ${display.lineHeight};
+          color: #333;
+        }
+        .article-form-editor .ql-editor img {
+          max-width: ${display.imageMaxWidth};
+          height: auto;
+        }
         ${fontSizeArr.map(size => `.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="${size}"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="${size}"]::before { content: '${size.replace('px', '')}'; }`).join('')}
         .ql-snow .ql-picker.ql-size .ql-picker-label::before { content: '11'; }
+        /* 글꼴 드롭다운 라벨 */
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value=""]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value=""]::before { content: '기본'; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="noto-sans-kr"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="noto-sans-kr"]::before { content: 'Noto Sans KR'; font-family: 'Noto Sans KR', sans-serif; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="nanum-myeongjo"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="nanum-myeongjo"]::before { content: '나눔명조'; font-family: 'Nanum Myeongjo', serif; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="georgia"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="georgia"]::before { content: 'Georgia'; font-family: Georgia, serif; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="malgun-gothic"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="malgun-gothic"]::before { content: '맑은 고딕'; font-family: 'Malgun Gothic', sans-serif; }
+        /* 글 간격 드롭다운 */
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-label[data-value=""]::before,
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-item[data-value=""]::before { content: '기본'; }
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-label[data-value="1.4"]::before,
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-item[data-value="1.4"]::before { content: '좁게 (1.4)'; }
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-label[data-value="1.6"]::before,
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-item[data-value="1.6"]::before { content: '보통 (1.6)'; }
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-label[data-value="1.8"]::before,
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-item[data-value="1.8"]::before { content: '기본 (1.8)'; }
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-label[data-value="2"]::before,
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-item[data-value="2"]::before { content: '넓게 (2)'; }
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-label[data-value="2.2"]::before,
+        .ql-snow .ql-picker.ql-lineHeight .ql-picker-item[data-value="2.2"]::before { content: '아주 넓게 (2.2)'; }
+        /* 에디터 본문 글꼴 적용 */
+        .ql-font-noto-sans-kr { font-family: 'Noto Sans KR', sans-serif; }
+        .ql-font-nanum-myeongjo { font-family: 'Nanum Myeongjo', serif; }
+        .ql-font-georgia { font-family: Georgia, serif; }
+        .ql-font-malgun-gothic { font-family: 'Malgun Gothic', sans-serif; }
       `}</style>
     </div>
   );

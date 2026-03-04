@@ -21,7 +21,7 @@ export default function Footer() {
               <a 
                 href="#" 
                 className={`
-                  hover:text-blue-600 hover:underline px-3 py-1 cursor-pointer transition-colors
+                  hover:underline px-3 py-1 cursor-pointer transition-colors hover:text-[var(--brand-600)]
                   ${link.bold ? "font-bold text-gray-800" : ""}
                 `}
               >
@@ -57,7 +57,7 @@ export default function Footer() {
               Copyright © 2026 NEWSPAPER. All rights reserved.
             </p>
             <p>
-              mail to <a href="mailto:help@newspaper.com" className="font-bold text-black hover:text-blue-600">help@newspaper.com</a>
+              mail to <a href="mailto:help@newspaper.com" className="font-bold text-black hover:text-[var(--brand-600)]">help@newspaper.com</a>
             </p>
           </div>
         </div>
