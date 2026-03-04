@@ -48,7 +48,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
         </button>
 
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-black text-blue-900">관리자 로그인</h2>
+          <h2 className="text-2xl font-black text-[var(--brand-900)]">관리자 로그인</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -56,7 +56,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
             <label className="block text-sm font-bold text-gray-700 mb-1">아이디</label>
             <input 
               type="text" 
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] transition-all"
               placeholder="admin"
               value={id}
               onChange={(e) => setId(e.target.value)}
@@ -66,7 +66,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
             <label className="block text-sm font-bold text-gray-700 mb-1">비밀번호</label>
             <input 
               type="password" 
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] transition-all"
               placeholder="••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -75,7 +75,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
           
           <button 
             type="submit"
-            className="w-full bg-blue-900 text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition-colors shadow-lg mt-4"
+            className="w-full text-white font-bold py-3 rounded-lg transition-colors shadow-lg mt-4 bg-[var(--brand-900)] hover:bg-[var(--brand-800)]"
           >
             로그인하기
           </button>

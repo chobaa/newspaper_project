@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { getBrandSettings } from "../utils/brandSettings";
+import { useBrandSettings } from "../context/BrandSettingsContext";
 
 export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSearchChange, showLogin = true }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
-  const brand = getBrandSettings();
+  const { settings: brand } = useBrandSettings();
 
   // ✅ 요청하신 8개 카테고리로 변경
   const menus = [
@@ -21,14 +21,22 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
             onClick={() => onSelectCategory("전체")}
             className="flex items-center gap-3 cursor-pointer group"
           >
-            <div className="h-10 w-10 bg-blue-900 rounded-lg flex items-center justify-center text-white shadow-sm overflow-hidden group-hover:shadow-md transition-all group-hover:rotate-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-black text-blue-900 tracking-tighter leading-none group-hover:text-blue-700 transition-colors">
-              {brand.siteName}
-            </h1>
+            {brand.logoImageUrl ? (
+              <div className="h-10 max-w-[200px] flex-shrink-0 shadow-sm group-hover:shadow-md transition-all group-hover:scale-[1.02]">
+                <img src={brand.logoImageUrl} alt={brand.siteName} className="h-full w-auto max-w-full object-contain object-left" />
+              </div>
+            ) : (
+              <>
+                <div className="h-10 w-10 rounded-lg flex items-center justify-center text-white shadow-sm overflow-hidden group-hover:shadow-md transition-all group-hover:rotate-3 bg-[var(--brand-900)]">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                  </svg>
+                </div>
+                <h1 className="text-2xl font-black tracking-tighter leading-none transition-colors text-[var(--brand-900)] group-hover:text-[var(--brand-700)]">
+                  {brand.siteName}
+                </h1>
+              </>
+            )}
           </div>
 
           {/* 중앙: 네비게이션 메뉴 (8개) + 관리자 전용 관리자 탭 */}
@@ -37,7 +45,7 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
               <button
                 key={menu}
                 onClick={() => onSelectCategory(menu)}
-                className="px-3 py-2 rounded-full text-gray-600 font-medium transition-all hover:bg-gray-100 hover:text-blue-700 text-sm lg:text-base whitespace-nowrap"
+                className="px-3 py-2 rounded-full text-gray-600 font-medium transition-all hover:bg-gray-100 text-sm lg:text-base whitespace-nowrap hover:text-[var(--brand-700)]"
               >
                 {menu}
               </button>
@@ -45,7 +53,7 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
             {isAdmin && (
               <button
                 onClick={() => onSelectCategory("관리자")}
-                className="px-3 py-2 rounded-full text-gray-600 font-medium transition-all hover:bg-gray-100 hover:text-blue-700 text-sm lg:text-base whitespace-nowrap border border-blue-200 bg-blue-50/50"
+                className="px-3 py-2 rounded-full text-gray-600 font-medium transition-all hover:bg-gray-100 text-sm lg:text-base whitespace-nowrap border bg-[var(--brand-50)]/50 border-[var(--brand-200)] hover:text-[var(--brand-700)]"
               >
                 관리자
               </button>
@@ -57,7 +65,7 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className={`p-2 rounded-full transition-colors ${isSearchOpen ? 'bg-gray-100 text-blue-600' : 'hover:bg-gray-100'}`}
+            className={`p-2 rounded-full transition-colors ${isSearchOpen ? 'bg-gray-100 text-[var(--brand-600)]' : 'hover:bg-gray-100'}`}
           >
             {isSearchOpen ? (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -94,7 +102,7 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
                 onSearchChange && onSearchChange(v);
               }}
               placeholder="관심있는 뉴스를 검색해보세요..."
-              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] shadow-sm"
             />
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>

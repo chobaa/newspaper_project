@@ -1,9 +1,9 @@
 import AdBanner from "./AdBanner";
 import NewsSlider from "./NewsSlider";
-import { getBrandSettings } from "../utils/brandSettings";
+import { useBrandSettings } from "../context/BrandSettingsContext";
 
 export default function Sidebar() {
-  const brand = getBrandSettings();
+  const { settings: brand } = useBrandSettings();
 
   return (
     <aside className="space-y-6">

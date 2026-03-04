@@ -10,6 +10,7 @@
     "dev:secondary": "vite --mode secondary --port 5174",
     "build:primary": "vite build --mode primary",
     "build:secondary": "vite build --mode secondary",
+    "build:all": "npm run build:primary && npm run build:secondary",
     "lint": "eslint .",
     "preview": "vite preview"
   },

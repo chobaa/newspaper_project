@@ -69,7 +69,7 @@ export default function ArticleDetail() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <p className="text-xl text-gray-500 mb-4">기사 정보를 찾을 수 없습니다.</p>
-        <button onClick={() => navigate(-1)} className="text-blue-600 hover:underline">
+        <button onClick={() => navigate(-1)} className="text-[var(--brand-600)] hover:underline">
           뒤로 가기
         </button>
       </div>
@@ -205,7 +205,7 @@ export default function ArticleDetail() {
           {/* 뒤로가기 버튼 */}
           <button
             onClick={() => navigate(-1)}
-            className="mb-6 text-sm text-gray-500 hover:text-blue-600 flex items-center gap-1 transition"
+            className="mb-6 text-sm text-gray-500 flex items-center gap-1 transition hover:text-[var(--brand-600)]"
           >
             ← 목록으로
           </button>
@@ -223,7 +223,7 @@ export default function ArticleDetail() {
             <>
               {/* 기사 헤더 */}
               <div className="border-b pb-6 mb-8">
-                <span className="inline-block px-3 py-1 mb-3 text-xs font-bold text-blue-800 bg-blue-100 rounded-full">
+                <span className="inline-block px-3 py-1 mb-3 text-xs font-bold rounded-full text-[var(--brand-800)] bg-[var(--brand-100)]">
                   {article.category}
                 </span>
                 <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-6 leading-tight">
@@ -243,7 +243,7 @@ export default function ArticleDetail() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => setIsEditing(true)}
-                          className="text-xs border border-gray-300 bg-white px-3 py-1 rounded hover:bg-blue-50 text-blue-600"
+                          className="text-xs border border-gray-300 bg-white px-3 py-1 rounded hover:bg-[var(--brand-50)] text-[var(--brand-600)]"
                         >
                           수정
                         </button>
@@ -269,8 +269,8 @@ export default function ArticleDetail() {
 
               {/* ✅ 관련 기사 섹션 (실제 기사 기반) */}
               <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
-                <h3 className="font-bold text-lg text-gray-800 mb-4 border-l-4 border-blue-600 pl-3">
-                  이 시각 <span className="text-blue-600">{article.category}</span> 주요 뉴스
+                <h3 className="font-bold text-lg text-gray-800 mb-4 border-l-4 pl-3 border-[var(--brand-600)]">
+                  이 시각 <span className="text-[var(--brand-600)]">{article.category}</span> 주요 뉴스
                 </h3>
                 {relatedNews.length === 0 ? (
                   <p className="text-sm text-gray-400">관련 기사가 아직 없습니다.</p>
@@ -292,7 +292,7 @@ export default function ArticleDetail() {
                           </div>
                         )}
                         <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
-                          <span className="text-gray-700 group-hover:text-blue-600 group-hover:underline truncate">
+                          <span className="text-gray-700 truncate group-hover:underline group-hover:text-[var(--brand-600)]">
                             · {news.title}
                           </span>
                           <span className="text-xs text-gray-400 flex-shrink-0">
@@ -354,6 +354,11 @@ export default function ArticleDetail() {
           color: #4b5563;
           margin: 1.5rem 0;
         }
+        /* 에디터에서 선택한 글꼴이 기사 본문에 적용된 경우 */
+        .article-content .ql-font-noto-sans-kr { font-family: 'Noto Sans KR', sans-serif; }
+        .article-content .ql-font-nanum-myeongjo { font-family: 'Nanum Myeongjo', serif; }
+        .article-content .ql-font-georgia { font-family: Georgia, serif; }
+        .article-content .ql-font-malgun-gothic { font-family: 'Malgun Gothic', sans-serif; }
       `}</style>
     </div>
   );

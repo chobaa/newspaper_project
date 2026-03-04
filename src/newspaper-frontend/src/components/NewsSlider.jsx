@@ -95,7 +95,7 @@ export default function NewsSlider() {
             }}
             className={`flex-1 py-3 text-sm font-bold transition-colors ${
               activeTab === tab
-                ? "bg-blue-600 text-white"
+                ? "text-white bg-[var(--brand-600)]"
                 : "bg-white text-gray-500 hover:bg-gray-50"
             }`}
           >
@@ -118,7 +118,7 @@ export default function NewsSlider() {
           </div>
         </div>
         <h4
-          className="font-bold text-lg leading-snug text-gray-800 hover:text-blue-600 cursor-pointer transition-colors"
+          className="font-bold text-lg leading-snug text-gray-800 cursor-pointer transition-colors hover:text-[var(--brand-600)]"
           onClick={() => goDetail(currentArticles[currentIndex].id)}
         >
           {currentArticles[currentIndex].title}
@@ -133,7 +133,7 @@ export default function NewsSlider() {
             }}
             className={`text-sm cursor-pointer truncate p-2 rounded transition-colors ${
               idx === currentIndex
-                ? "font-bold text-blue-600 bg-blue-50"
+                ? "font-bold bg-[var(--brand-50)] text-[var(--brand-600)]"
                 : "text-gray-500 hover:bg-gray-50"
             }`}
           >
