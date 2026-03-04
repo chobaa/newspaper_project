@@ -1,0 +1,24 @@
+# Build both primary and secondary frontends
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY src/newspaper-frontend/package*.json ./
+RUN npm ci
+COPY src/newspaper-frontend .
+
+# Build primary (NEWSPAPER)
+ENV VITE_BRAND=primary
+RUN npm run build
+RUN mv dist dist-primary
+
+# Build secondary (DAILY FOCUS)
+ENV VITE_BRAND=secondary
+RUN npm run build
+RUN mv dist dist-secondary
+
+# Nginx serve
+FROM nginx:alpine
+COPY --from=builder /app/dist-primary /usr/share/nginx/html/primary
+COPY --from=builder /app/dist-secondary /usr/share/nginx/html/secondary
+COPY deployment/nginx/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80 8081

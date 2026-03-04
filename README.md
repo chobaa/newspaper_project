@@ -43,8 +43,8 @@ Spring Boot 기반 API 서버와 React(Vite) 프론트엔드로 구성되어 있
 - **관리자 로그인**
   - 프론트: `LoginModal`에서 아이디/비밀번호 입력
   - 백엔드: `/api/admin/login`으로 검증
-    - 하드코딩 계정: `admin / 8593`
   - 로그인 성공 시 로컬스토리지에 `isAdmin=true` 저장, 관리 기능 활성화
+  - 관리자 계정은 백엔드 설정에서 지정 (배포 시 반드시 변경 권장)
 - **기사 작성**
   - 카테고리 선택 + 제목 입력 + Quill 기반 본문 편집기
   - 본문 내 이미지는 S3(MinIO)에 미리 업로드된 URL을 사용하는 구조(에디터에 직접 `<img>` 삽입)
@@ -77,7 +77,7 @@ Spring Boot 기반 API 서버와 React(Vite) 프론트엔드로 구성되어 있
   - 세로형 긴 배너
   - 오른쪽 인기/실시간 추천 슬라이더
 - **배너 설정 (관리자 패널)**
-  - 로컬스토리지 기반 브랜드 설정(`brandSettings`)
+  - 서버(DB) 기반 브랜드 설정 (`brand_settings` 테이블)
   - 항목:
     - 상단/세로/하단 띠 배너 문구
     - 각 배너 이미지 URL
@@ -123,16 +123,34 @@ Spring Boot 기반 API 서버와 React(Vite) 프론트엔드로 구성되어 있
 
 ## 개발/실행 방법 (요약)
 
-> 실제 포트/DB 설정, MinIO 주소 등은 `.env` 및 `src/newspaper-frontend/.env.*` 파일을 참고하세요.
+> 포트, DB, MinIO, 메일 등은 `.env`와 `src/newspaper-frontend/.env.*`에서 설정합니다.  
+> 배포 시 `.env.example`을 복사해 `.env`를 만든 뒤 값을 채우세요. (비밀번호·API 키 등은 저장소에 올리지 마세요.)
 
 1. **백엔드**
-   - JDK 및 Gradle 환경에서 `src/api-server`를 기본 Spring Boot 방식으로 실행
-   - MySQL 및 MinIO가 로컬에서 실행 중이어야 합니다.
+   - JDK 17 및 Gradle: `src/api-server`에서 Spring Boot 실행
+   - MySQL, MinIO가 실행 중이어야 합니다.
 2. **프론트엔드**
-   - `cd src/newspaper-frontend`
-   - `npm install`
-   - `npm run dev` 로 개발 서버 실행
-3. 브라우저에서 프론트엔드 주소(예: `http://localhost:5173`)로 접속
+   - `cd src/newspaper-frontend` → `npm install` → `npm run dev`
+3. 브라우저에서 프론트 주소로 접속 (기본: `http://localhost:5173`)
+
+---
+
+## 배포 (Docker Compose)
+
+```bash
+# .env 설정 후 전체 스택 실행 (DB, MinIO, Backend, Frontend+Nginx)
+docker compose up -d
+```
+
+| 접속 주소 | 설명 |
+|-----------|------|
+| `http://<서버>:80` | Primary 사이트 (NEWSPAPER) |
+| `http://<서버>:8081` | Secondary 사이트 (DAILY FOCUS) |
+| `http://<서버>:8080` | API 직접 (Nginx 사용 시 `/api`로 프록시됨) |
+
+- **환경 변수**: `.env.example`을 복사해 `.env` 생성 후, DB/MinIO/메일/Gemini/CORS 등 **실제 값으로만** 채우세요. `.env`는 Git에 커밋하지 마세요.
+- **CORS**: 실제 도메인·IP로 접속할 경우 `.env`에 `CORS_ALLOWED_ORIGINS`를 해당 Origin 목록(쉼표 구분)으로 설정한 뒤 백엔드 컨테이너를 재시작하세요.
+- **백업**: `scripts/backup.sh` (Linux/Mac), `scripts/backup.ps1` (Windows). 정기 실행 권장.
 
 ---
 
