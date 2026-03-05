@@ -78,9 +78,11 @@ export default function NewsSlider() {
     );
   }
 
-  const goDetail = (articleId) => {
-    if (!articleId) return;
-    navigate(`/article/${articleId}`);
+  const current = currentArticles[currentIndex] || null;
+
+  const goDetail = (article) => {
+    if (!article || !article.id) return;
+    navigate(`/article/${article.id}`);
   };
 
   return (
@@ -104,25 +106,29 @@ export default function NewsSlider() {
         ))}
       </div>
       <div className="p-4">
-        <div
-          className="relative overflow-hidden rounded-xl h-48 mb-3 group cursor-pointer"
-          onClick={() => goDetail(currentArticles[currentIndex].id)}
-        >
-          <img
-            src={currentArticles[currentIndex].img}
-            alt="news"
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-          <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-            {currentIndex + 1} / {currentArticles.length}
-          </div>
-        </div>
-        <h4
-          className="font-bold text-lg leading-snug text-gray-800 cursor-pointer transition-colors hover:text-[var(--brand-600)]"
-          onClick={() => goDetail(currentArticles[currentIndex].id)}
-        >
-          {currentArticles[currentIndex].title}
-        </h4>
+        {current && (
+          <>
+            <div
+              className="relative overflow-hidden rounded-xl h-48 mb-3 group cursor-pointer"
+              onClick={() => goDetail(current)}
+            >
+              <img
+                src={current.img}
+                alt="news"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                {currentIndex + 1} / {currentArticles.length}
+              </div>
+            </div>
+            <h4
+              className="font-bold text-lg leading-snug text-gray-800 cursor-pointer transition-colors hover:text-[var(--brand-600)]"
+              onClick={() => goDetail(current)}
+            >
+              {current.title}
+            </h4>
+          </>
+        )}
       </div>
       <div className="px-4 pb-4 space-y-2">
         {currentArticles.map((item, idx) => (
@@ -137,7 +143,12 @@ export default function NewsSlider() {
                 : "text-gray-500 hover:bg-gray-50"
             }`}
           >
-            • {item.title}
+            <span
+              onClick={() => goDetail(item)}
+              className="inline-block w-full"
+            >
+              • {item.title}
+            </span>
           </div>
         ))}
       </div>

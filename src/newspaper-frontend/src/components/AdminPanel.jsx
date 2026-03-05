@@ -35,6 +35,11 @@ export default function AdminPanel() {
   const [brandDirty, setBrandDirty] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // 배너 3개씩 설정용 로컬 상태 (JSON 문자열로 저장되는 값 파싱)
+  const [sidebarTopBanners, setSidebarTopBanners] = useState([]);
+  const [sidebarLongBanners, setSidebarLongBanners] = useState([]);
+  const [bottomBannerBanners, setBottomBannerBanners] = useState([]);
+
   // AI summary loading state per log
   const [summaryLoading, setSummaryLoading] = useState({});
 
@@ -187,6 +192,59 @@ export default function AdminPanel() {
   useEffect(() => {
     if (Object.keys(brand).length > 0) {
       setBrandForm(brand);
+      // 기존 문자열 or JSON 문자열을 배열로 변환
+      const parseBannerList = (raw, fallbackText) => {
+        if (!raw) return [];
+        if (Array.isArray(raw)) {
+          return raw.map((b) => ({
+            imageUrl: b.imageUrl || "",
+            linkUrl: b.linkUrl || "",
+            text: b.text || fallbackText || "",
+            show: b.show !== false,
+          }));
+        }
+        if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              return parsed.map((b) => ({
+                imageUrl: b.imageUrl || "",
+                linkUrl: b.linkUrl || "",
+                text: b.text || fallbackText || "",
+                show: b.show !== false,
+              }));
+            }
+          } catch {
+            // 예전 방식: 이미지 URL 문자열 하나만 있을 때
+            return [{
+              imageUrl: raw,
+              text: fallbackText || "",
+              linkUrl: "",
+              show: true,
+            }];
+          }
+        }
+        return [];
+      };
+
+      const ensureFive = (list, fallbackText) => {
+        const arr = [...list];
+        while (arr.length < 5) {
+          arr.push({
+            imageUrl: "",
+            linkUrl: "",
+            text: fallbackText || "",
+            show: false,
+          });
+        }
+        return arr.slice(0, 5);
+      };
+
+      setSidebarTopBanners(
+        ensureFive(parseBannerList(brand.sidebarTopImageUrl, brand.sidebarTopText), brand.sidebarTopText)
+      );
+      setSidebarLongBanners(parseBannerList(brand.sidebarLongImageUrl, brand.sidebarLongText));
+      setBottomBannerBanners(parseBannerList(brand.bottomBannerImageUrl, brand.bottomBannerText));
     }
   }, [brand]);
 
@@ -222,6 +280,109 @@ export default function AdminPanel() {
       alert("이미지 업로드 오류: " + e.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  // 개별 배너 슬롯용 업로드 헬퍼
+  const uploadMultiBannerImage = async (position, index, file) => {
+    if (!file) return;
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      const ext = file.name && file.name.includes(".") ? file.name.substring(file.name.lastIndexOf(".")) : "";
+      const baseName = `${position}-${index + 1}`;
+      const renamed = new File([file], `${baseName}${ext || ".png"}`, { type: file.type || "image/png" });
+      formData.append("file", renamed);
+
+      const res = await fetch("/api/admin/brand-assets", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        throw new Error("업로드 실패");
+      }
+      const data = await res.json();
+      const url = data.url;
+
+      if (position === "sidebar-top") {
+        setSidebarTopBanners(prev =>
+          prev.map((b, i) => (i === index ? { ...b, imageUrl: url } : b))
+        );
+      } else if (position === "sidebar-long") {
+        setSidebarLongBanners(prev =>
+          prev.map((b, i) => (i === index ? { ...b, imageUrl: url } : b))
+        );
+      } else if (position === "bottom-banner") {
+        setBottomBannerBanners(prev =>
+          prev.map((b, i) => (i === index ? { ...b, imageUrl: url } : b))
+        );
+      }
+
+      setBrandDirty(true);
+      alert("배너 이미지가 업로드되었습니다.");
+    } catch (e) {
+      alert("이미지 업로드 오류: " + e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 개별 배너 이미지 삭제 헬퍼
+  const deleteMultiBannerImage = async (position, index) => {
+    try {
+      let list = [];
+      if (position === "sidebar-top") {
+        list = sidebarTopBanners;
+      } else if (position === "sidebar-long") {
+        list = sidebarLongBanners;
+      } else if (position === "bottom-banner") {
+        list = bottomBannerBanners;
+      }
+      const target = list[index];
+      const url = target?.imageUrl;
+
+      if (!url) {
+        // URL 이 없으면 프론트 상태만 비운다
+        if (position === "sidebar-top") {
+          setSidebarTopBanners(prev =>
+            prev.map((b, i) => (i === index ? { ...b, imageUrl: "", show: false } : b))
+          );
+        } else if (position === "sidebar-long") {
+          setSidebarLongBanners(prev =>
+            prev.map((b, i) => (i === index ? { ...b, imageUrl: "", show: false } : b))
+          );
+        } else if (position === "bottom-banner") {
+          setBottomBannerBanners(prev =>
+            prev.map((b, i) => (i === index ? { ...b, imageUrl: "", show: false } : b))
+          );
+        }
+        setBrandDirty(true);
+        return;
+      }
+
+      if (!window.confirm("이 배너 이미지를 삭제하시겠습니까?")) return;
+
+      await fetch("/api/admin/brand-assets?url=" + encodeURIComponent(url), {
+        method: "DELETE",
+      }).catch(() => {});
+
+      if (position === "sidebar-top") {
+        setSidebarTopBanners(prev =>
+          prev.map((b, i) => (i === index ? { ...b, imageUrl: "", show: false } : b))
+        );
+      } else if (position === "sidebar-long") {
+        setSidebarLongBanners(prev =>
+          prev.map((b, i) => (i === index ? { ...b, imageUrl: "", show: false } : b))
+        );
+      } else if (position === "bottom-banner") {
+        setBottomBannerBanners(prev =>
+          prev.map((b, i) => (i === index ? { ...b, imageUrl: "", show: false } : b))
+        );
+      }
+      setBrandDirty(true);
+      alert("배너 이미지가 삭제되었습니다.");
+    } catch (e) {
+      alert("이미지 삭제 오류: " + (e.message || ""));
     }
   };
 
@@ -397,6 +558,17 @@ export default function AdminPanel() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">기본 기자명</label>
+            <input
+              type="text"
+              value={brandForm.defaultReporterName ?? brand?.defaultReporterName ?? "기자"}
+              onChange={(e) => handleBrandFormChange("defaultReporterName", e.target.value)}
+              placeholder="예: 홍길동"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+            <p className="text-xs text-gray-500 mt-1">새 기사 작성 시 기본으로 들어갈 기자명을 설정합니다.</p>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">헤더 로고 이미지</label>
             <p className="text-xs text-gray-500 mb-2">로고와 사이트 이름이 함께 있는 이미지를 올리세요. 업로드 시 기존 아이콘·텍스트 대신 이 이미지만 표시됩니다.</p>
             <div className="flex items-center gap-3">
@@ -456,31 +628,93 @@ export default function AdminPanel() {
                 />
                 <label htmlFor="show-sidebar-top" className="text-xs text-gray-700">이 상단 배너를 화면에 표시</label>
               </div>
-              <label className="block text-xs font-medium text-gray-500 mt-2 mb-1">상단 광고 이미지 URL (선택)</label>
-              <input
-                type="text"
-                value={brandForm.sidebarTopImageUrl ?? ""}
-                onChange={(e) => handleBrandFormChange("sidebarTopImageUrl", e.target.value)}
-                placeholder="https://example.com/banner-top.jpg"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
-              />
-              <div className="mt-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">상단 광고 이미지 업로드</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={uploading}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleBannerImageUpload("sidebarTopImageUrl", file);
-                      e.target.value = "";
-                    }
-                  }}
-                  className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
-                />
+              {/* 상단 배너: 5개 고정 슬롯 */}
+              <div className="mt-4 space-y-3">
+                <div className="text-xs font-semibold text-gray-600">상단 광고 배너 (최대 5개)</div>
+                {sidebarTopBanners.map((b, idx) => (
+                  <div key={idx} className="p-3 bg-white border border-gray-200 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-700">상단 배너 {idx + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1 text-[11px] text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={b.show !== false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setSidebarTopBanners(prev =>
+                                prev.map((item, i) => (i === idx ? { ...item, show: checked } : item))
+                              );
+                              setBrandDirty(true);
+                            }}
+                            className="h-3 w-3 border-gray-300 rounded text-[var(--brand-600)]"
+                          />
+                          표시
+                        </label>
+                      </div>
+                    </div>
+                    {b.imageUrl && (
+                      <div className="w-full flex items-center gap-3">
+                        <div className="flex-1 h-16 bg-white rounded overflow-hidden flex items-center justify-center border border-gray-200">
+                          <img
+                            src={b.imageUrl}
+                            alt={`상단 배너 ${idx + 1}`}
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => deleteMultiBannerImage("sidebar-top", idx)}
+                          className="text-[11px] px-2 py-1 border border-gray-300 rounded text-red-600 hover:bg-red-50"
+                        >
+                          이미지 삭제
+                        </button>
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={b.imageUrl || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSidebarTopBanners(prev =>
+                          prev.map((item, i) => (i === idx ? { ...item, imageUrl: value } : item))
+                        );
+                        setBrandDirty(true);
+                      }}
+                      placeholder="이미지 URL"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                    />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          uploadMultiBannerImage("sidebar-top", idx, file);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
+                    />
+                    <input
+                      type="text"
+                      value={b.linkUrl || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSidebarTopBanners(prev =>
+                          prev.map((item, i) => (i === idx ? { ...item, linkUrl: value } : item))
+                        );
+                        setBrandDirty(true);
+                      }}
+                      placeholder="배너 클릭 시 이동할 링크 URL (예: https://example.com)"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
+            {false && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">세로 긴 광고 배너 문구</label>
               <input
@@ -524,9 +758,110 @@ export default function AdminPanel() {
                   className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
                 />
               </div>
+              {/* 세로형 배너: 여러 개 추가/삭제 가능 */}
+              <div className="mt-4 space-y-3">
+                <div className="text-xs font-semibold text-gray-600">세로 긴 광고 배너 (여러 개)</div>
+                {sidebarLongBanners.map((b, idx) => (
+                  <div key={idx} className="p-3 bg-white border border-gray-200 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-700">세로 배너 {idx + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1 text-[11px] text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={b.show !== false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setSidebarLongBanners(prev =>
+                                prev.map((item, i) => (i === idx ? { ...item, show: checked } : item))
+                              );
+                              setBrandDirty(true);
+                            }}
+                            className="h-3 w-3 border-gray-300 rounded text-[var(--brand-600)]"
+                          />
+                          표시
+                        </label>
+                        <button
+                          type="button"
+                          className="text-[11px] text-red-600 hover:underline"
+                          onClick={() => {
+                            setSidebarLongBanners(prev => prev.filter((_, i) => i !== idx));
+                            setBrandDirty(true);
+                          }}
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                    {b.imageUrl && (
+                      <div className="w-full h-20 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                        <img
+                          src={b.imageUrl}
+                          alt={`세로 배너 ${idx + 1}`}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={b.imageUrl || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSidebarLongBanners(prev =>
+                          prev.map((item, i) => (i === idx ? { ...item, imageUrl: value } : item))
+                        );
+                        setBrandDirty(true);
+                      }}
+                      placeholder="이미지 URL"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                    />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          uploadMultiBannerImage("sidebar-long", idx, file);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
+                    />
+                    <input
+                      type="text"
+                      value={b.linkUrl || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSidebarLongBanners(prev =>
+                          prev.map((item, i) => (i === idx ? { ...item, linkUrl: value } : item))
+                        );
+                        setBrandDirty(true);
+                      }}
+                      placeholder="배너 클릭 시 이동할 링크 URL (예: https://example.com)"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                    />
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50"
+                  onClick={() => {
+                    setSidebarLongBanners(prev => [
+                      ...prev,
+                      { imageUrl: "", linkUrl: "", text: brandForm.sidebarLongText || "", show: true },
+                    ]);
+                    setBrandDirty(true);
+                  }}
+                >
+                  + 세로형 배너 추가
+                </button>
+              </div>
             </div>
+            )}
           </div>
-
+          
+          {false && (
           <div className="mt-6 border-t border-gray-200 pt-4 space-y-3">
             <h4 className="text-sm font-bold text-gray-800">하단 띠 배너 설정</h4>
             <div>
@@ -559,9 +894,110 @@ export default function AdminPanel() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
               />
             </div>
+            {/* 하단 띠 배너: 여러 개 추가/삭제 가능 */}
+            <div className="mt-4 space-y-3">
+              <div className="text-xs font-semibold text-gray-600">하단 띠 배너 (여러 개)</div>
+              {bottomBannerBanners.map((b, idx) => (
+                <div key={idx} className="p-3 bg-white border border-gray-200 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-700">하단 배너 {idx + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1 text-[11px] text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={b.show !== false}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setBottomBannerBanners(prev =>
+                              prev.map((item, i) => (i === idx ? { ...item, show: checked } : item))
+                            );
+                            setBrandDirty(true);
+                          }}
+                          className="h-3 w-3 border-gray-300 rounded text-[var(--brand-600)]"
+                        />
+                        표시
+                      </label>
+                      <button
+                        type="button"
+                        className="text-[11px] text-red-600 hover:underline"
+                        onClick={() => {
+                          setBottomBannerBanners(prev => prev.filter((_, i) => i !== idx));
+                          setBrandDirty(true);
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                  {b.imageUrl && (
+                    <div className="w-full h-16 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                      <img
+                        src={b.imageUrl}
+                        alt={`하단 배너 ${idx + 1}`}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={b.imageUrl || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setBottomBannerBanners(prev =>
+                        prev.map((item, i) => (i === idx ? { ...item, imageUrl: value } : item))
+                      );
+                      setBrandDirty(true);
+                    }}
+                    placeholder="이미지 URL"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        uploadMultiBannerImage("bottom-banner", idx, file);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="block w-full text-xs text-gray-600 file:mr-2 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-white file:text-xs disabled:opacity-50 file:bg-[var(--brand-600)] hover:file:bg-[var(--brand-700)]"
+                  />
+                  <input
+                    type="text"
+                    value={b.linkUrl || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setBottomBannerBanners(prev =>
+                        prev.map((item, i) => (i === idx ? { ...item, linkUrl: value } : item))
+                      );
+                      setBrandDirty(true);
+                    }}
+                    placeholder="배너 클릭 시 이동할 링크 URL (예: https://example.com)"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs"
+                  />
+                </div>
+              ))}
+              <button
+                type="button"
+                className="px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50"
+                onClick={() => {
+                  setBottomBannerBanners(prev => [
+                    ...prev,
+                    { imageUrl: "", linkUrl: "", text: brandForm.bottomBannerText || "", show: true },
+                  ]);
+                  setBrandDirty(true);
+                }}
+              >
+                + 하단 배너 추가
+              </button>
+            </div>
           </div>
+          )}
 
-          {/* 현재 사용 중인 배너 이미지 리스트 */}
+          {/* 현재 사용 중인 배너 이미지 리스트 (로고/단일 배너 미리보기) - 필요 시 다시 활성화 */}
+          {false && (
           <div className="mt-6 border-t border-gray-200 pt-4">
             <h4 className="text-sm font-bold text-gray-800 mb-2">배너 / 로고 이미지 목록</h4>
             <p className="text-xs text-gray-500 mb-3">현재 각 배너 및 로고에 설정된 이미지 목록입니다.</p>
@@ -650,9 +1086,36 @@ export default function AdminPanel() {
               )}
             </div>
           </div>
+          )}
           <div className="mt-2 flex gap-2">
             <button
-              onClick={saveBrandConfigLocal}
+              onClick={async () => {
+                // 배너 리스트를 JSON 문자열로 변환해서 기존 필드에 저장
+                const clean = (list) =>
+                  list
+                    .filter((b) => b && (b.imageUrl || b.linkUrl || b.text))
+                    .map((b) => ({
+                      imageUrl: b.imageUrl || "",
+                      linkUrl: b.linkUrl || "",
+                      text: b.text || "",
+                      show: b.show !== false,
+                    }));
+
+                const payload = {
+                  ...brandForm,
+                  sidebarTopImageUrl: JSON.stringify(clean(sidebarTopBanners)),
+                  sidebarLongImageUrl: JSON.stringify(clean(sidebarLongBanners)),
+                  bottomBannerImageUrl: JSON.stringify(clean(bottomBannerBanners)),
+                };
+
+                try {
+                  await saveBrandToApi(payload);
+                  setBrandDirty(false);
+                  alert("브랜드 / 배너 설정이 저장되었습니다.");
+                } catch (e) {
+                  alert("저장 실패: " + e.message);
+                }
+              }}
               disabled={!brandDirty}
               className={`px-5 py-2 rounded-lg font-bold text-white ${brandDirty ? "bg-[var(--brand-600)] hover:bg-[var(--brand-700)]" : "bg-gray-300 cursor-not-allowed"}`}
             >

@@ -39,6 +39,7 @@ public class BrandSettingsService {
         m.put("bottomBannerText", nullToEmpty(settings.getBottomBannerText()));
         m.put("bottomBannerImageUrl", nullToEmpty(settings.getBottomBannerImageUrl()));
         m.put("showBottomBanner", settings.getShowBottomBanner() != null ? settings.getShowBottomBanner() : true);
+        m.put("defaultReporterName", nullToEmpty(settings.getDefaultReporterName()));
         return m;
     }
 
@@ -60,11 +61,13 @@ public class BrandSettingsService {
         String bottomBannerText = getString(body, "bottomBannerText");
         String bottomBannerImageUrl = getString(body, "bottomBannerImageUrl");
         Boolean showBottomBanner = getBoolean(body, "showBottomBanner");
+        String defaultReporterName = getString(body, "defaultReporterName");
 
         settings.update(siteName, logoImageUrl,
                 sidebarTopText, sidebarTopImageUrl, showSidebarTop,
                 sidebarLongText, sidebarLongImageUrl, showSidebarLong,
-                bottomBannerText, bottomBannerImageUrl, showBottomBanner);
+                bottomBannerText, bottomBannerImageUrl, showBottomBanner,
+                defaultReporterName);
 
         repository.save(settings);
         return getSettings(brandId);
@@ -95,14 +98,15 @@ public class BrandSettingsService {
         m.put("bottomBannerText", "하단 띠 배너 광고");
         m.put("bottomBannerImageUrl", "");
         m.put("showBottomBanner", true);
+        m.put("defaultReporterName", "기자");
         return m;
     }
 
     private BrandSettings createDefault(String brandId) {
         if ("secondary".equals(brandId)) {
-            return new BrandSettings(brandId, SECONDARY_SITE_NAME, SECONDARY_SIDEBAR_TOP, SECONDARY_SIDEBAR_LONG, "하단 띠 배너 광고");
+            return new BrandSettings(brandId, SECONDARY_SITE_NAME, SECONDARY_SIDEBAR_TOP, SECONDARY_SIDEBAR_LONG, "하단 띠 배너 광고", "기자");
         }
-        return new BrandSettings(brandId, PRIMARY_SITE_NAME, PRIMARY_SIDEBAR_TOP, PRIMARY_SIDEBAR_LONG, "하단 띠 배너 광고");
+        return new BrandSettings(brandId, PRIMARY_SITE_NAME, PRIMARY_SIDEBAR_TOP, PRIMARY_SIDEBAR_LONG, "하단 띠 배너 광고", "기자");
     }
 
     private static String nullToEmpty(String s) {

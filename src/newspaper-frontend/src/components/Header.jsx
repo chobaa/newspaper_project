@@ -39,8 +39,10 @@ export default function Header({ onSelectCategory, onLoginClick, isAdmin, onSear
             )}
           </div>
 
-          {/* 중앙: 네비게이션 메뉴 (8개) + 관리자 전용 관리자 탭 */}
-          <nav className="hidden md:flex items-center space-x-1">
+        {/* 중앙: 네비게이션 메뉴 (8개) + 관리자 전용 관리자 탭
+            - 모바일에서도 항상 보이도록 숨김 클래스 제거
+            - 가로 스크롤 가능하게 처리 */}
+        <nav className="flex items-center space-x-1 overflow-x-auto scrollbar-none">
             {menus.map((menu) => (
               <button
                 key={menu}
