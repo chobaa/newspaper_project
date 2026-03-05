@@ -193,6 +193,18 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
           break;
         }
       }
+
+      // 브라우저/Quill가 기본으로 넣은 data: 이미지는 모두 제거 (중복 방지)
+      const root = quill.root;
+      const dataImages = root.querySelectorAll('img[src^="data:"]');
+      dataImages.forEach((img) => {
+        const blot = Quill.find(img);
+        if (blot && blot.remove) {
+          blot.remove();
+        } else {
+          img.remove();
+        }
+      });
     };
 
     const editorRoot = quill.root;

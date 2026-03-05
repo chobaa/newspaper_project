@@ -69,28 +69,18 @@ export default function Privacy() {
 
             {/* 제5조 */}
             <div>
-              <h2 className="font-bold text-gray-900 text-base mb-2">제5조. 개인정보 취급 위탁</h2>
-              <p className="mb-2">회사는 원활한 서비스 이행을 위해 아래와 같이 외부 전문업체에 위탁하여 운영하고 있습니다.</p>
-              <div className="border border-gray-200 rounded-md p-3">
-                <p><strong>수탁업체:</strong> 인포랜드</p>
-                <p><strong>위탁업무:</strong> 홈페이지 유지보수 및 전산 시스템 관리</p>
-              </div>
-            </div>
-
-            {/* 제6조 */}
-            <div>
-              <h2 className="font-bold text-gray-900 text-base mb-2">제6조. 개인정보 보호책임자</h2>
+              <h2 className="font-bold text-gray-900 text-base mb-2">제5조. 개인정보 보호책임자</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 border border-gray-100 rounded-lg">
                   <p className="font-bold text-gray-800">[개인정보 관리책임자]</p>
-                  <p>성명: 송종명</p>
-                  <p>이메일: fishwoww@naver.com</p>
-                  <p>연락처: 010-9124-2848</p>
+                  <p>성명: 김경희</p>
+                  <p>이메일: newsnpeoples@naver.com</p>
+                  <p>연락처: 010-4313-8961</p>
                 </div>
                 <div className="p-4 border border-gray-100 rounded-lg">
                   <p className="font-bold text-gray-800">[고객서비스 담당부서]</p>
                   <p>부서: 인터넷팀</p>
-                  <p>전화번호: 010-9124-2848</p>
+                  <p>전화번호: 010-4313-8961</p>
                 </div>
               </div>
             </div>

@@ -72,15 +72,15 @@ export default function Placement() {
               <div className="space-y-3">
                 <div className="flex border-b border-blue-200/50 pb-2">
                   <span className="w-24 font-bold text-blue-800 text-xs uppercase tracking-wider">성명(직위)</span>
-                  <span className="text-gray-900 font-medium">송종명</span>
+                  <span className="text-gray-900 font-medium">김경희</span>
                 </div>
                 <div className="flex border-b border-blue-200/50 pb-2">
                   <span className="w-24 font-bold text-blue-800 text-xs uppercase tracking-wider">전화번호</span>
-                  <a href="tel:010-9124-2848" className="text-gray-900 hover:text-blue-700 transition-colors">010-9124-2848</a>
+                  <a href="tel:010-9124-2848" className="text-gray-900 hover:text-blue-700 transition-colors">010-4313-8961</a>
                 </div>
                 <div className="flex">
                   <span className="w-24 font-bold text-blue-800 text-xs uppercase tracking-wider">E-mail</span>
-                  <a href="mailto:fishwoww@naver.com" className="text-gray-900 hover:text-blue-700 underline decoration-blue-200">fishwoww@naver.com</a>
+                  <a href="mailto:fishwoww@naver.com" className="text-gray-900 hover:text-blue-700 underline decoration-blue-200">newsnpeoples@naver.com</a>
                 </div>
               </div>
             </div>

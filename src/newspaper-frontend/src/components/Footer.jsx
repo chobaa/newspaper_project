@@ -39,26 +39,26 @@ export default function Footer() {
         {/* 2. 하단 회사 정보 */}
         <div className="text-xs text-gray-500 space-y-2 leading-relaxed border-t border-gray-200 pt-6">
           <p>
-            <span className="font-bold mr-2">주소 :</span> 경기도 성남시 수정구 논골로 36번길 10, B101호 &nbsp;|&nbsp; 
+            <span className="font-bold mr-2">주소 :</span> 경기도 성남시 중원구 둔촌대로 193 성남동현대아파트 102동 1116호 &nbsp;|&nbsp; 
             <span className="font-bold mx-2">관리자 등록번호 :</span> 경기 아51809 &nbsp;|&nbsp; 
             <span className="font-bold mx-2">등록일 :</span> 2026년 1월 9일
           </p>
           <p>
-            <span className="font-bold mr-2">제호 :</span> NEWSPAPER &nbsp;|&nbsp; 
-            <span className="font-bold mx-2">직통전화 :</span> 010-1234-5678 &nbsp;|&nbsp; 
-            <span className="font-bold mx-2">발행인·편집인 :</span> 송종명
+            <span className="font-bold mr-2">제호 :</span> 뉴스앤피플 &nbsp;|&nbsp; 
+            <span className="font-bold mx-2">직통전화 :</span> 010-4313-8961 &nbsp;|&nbsp; 
+            <span className="font-bold mx-2">발행인·편집인 :</span> 김경희
           </p>
           <p>
-            <span className="font-bold mr-2">개인정보관리책임자 :</span> 송종명 &nbsp;|&nbsp; 
-            <span className="font-bold mx-2">청소년보호책임자 :</span> 송종명
+            <span className="font-bold mr-2">개인정보관리책임자 :</span> 김경희 &nbsp;|&nbsp; 
+            <span className="font-bold mx-2">청소년보호책임자 :</span> 김경희
           </p>
 
           <div className="mt-4 flex flex-col md:flex-row md:items-center gap-2">
             <p className="font-bold text-gray-700">
-              Copyright © 2026 NEWSPAPER. All rights reserved.
+              Copyright © 2026 NEWSNPEOPLE. All rights reserved.
             </p>
             <p>
-              mail to <a href="mailto:help@newspaper.com" className="font-bold text-black hover:text-[var(--brand-600)]">help@newspaper.com</a>
+              mail to <a href="newsnpeoples@naver.com" className="font-bold text-black hover:text-[var(--brand-600)]">newsnpeoples@naver.com</a>
             </p>
           </div>
         </div>

@@ -89,7 +89,7 @@ export default function Posting() {
           </section>
 
           <footer className="pt-8 border-t border-gray-100 text-[11px] text-gray-400">
-            본 원칙은 2026년 3월 5일부터 적용됩니다. 관련 문의는 뉴스앤피플 인터넷팀으로 연락 주시기 바랍니다.
+            본 원칙은 2026년 3월 5일부터 적용됩니다. 관련 문의는 뉴스앤피플팀으로 연락 주시기 바랍니다.
           </footer>
         </div>
 
