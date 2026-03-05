@@ -397,6 +397,17 @@ export default function AdminPanel() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">기본 기자명</label>
+            <input
+              type="text"
+              value={brandForm.defaultReporterName ?? brand?.defaultReporterName ?? "기자"}
+              onChange={(e) => handleBrandFormChange("defaultReporterName", e.target.value)}
+              placeholder="예: 홍길동"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+            <p className="text-xs text-gray-500 mt-1">새 기사 작성 시 기본으로 들어갈 기자명을 설정합니다.</p>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">헤더 로고 이미지</label>
             <p className="text-xs text-gray-500 mb-2">로고와 사이트 이름이 함께 있는 이미지를 올리세요. 업로드 시 기존 아이콘·텍스트 대신 이 이미지만 표시됩니다.</p>
             <div className="flex items-center gap-3">

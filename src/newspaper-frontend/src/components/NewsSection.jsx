@@ -25,16 +25,23 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
           throw new Error("기사 목록을 불러오지 못했습니다.");
         }
         const data = await res.json();
+        const normalizeContentHtml = (html) => {
+          if (!html) return "";
+          return html
+            .replace(/&amp;nbsp;/g, " ")
+            .replace(/&nbsp;/g, " ");
+        };
         const mapped = data.map((a) => {
-          const plainText = a.content ? a.content.replace(/<[^>]+>/g, "") : "";
+          const contentHtml = normalizeContentHtml(a.content || "");
+          const plainText = contentHtml.replace(/<[^>]+>/g, "");
           // 헤드라인/리스트 모두에서 좀 더 긴 요약을 보여주기 위해 길이를 늘림
           const desc =
             plainText.length > 0
               ? plainText.slice(0, 300) + (plainText.length > 300 ? "..." : "")
               : "";
           // 본문 HTML에서 첫 번째 <img src="...">를 그대로 썸네일로 사용
-          const imgMatch = a.content
-            ? a.content.match(/<img[^>]+src="([^">]+)"/)
+          const imgMatch = contentHtml
+            ? contentHtml.match(/<img[^>]+src="([^">]+)"/)
             : null;
           const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
           const dateStr = a.regDate ? a.regDate.substring(0, 10) : "";
@@ -449,7 +456,19 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
   };
 
   const MainGridView = () => {
-    const headline = articles[0];
+    const [headlineIndex, setHeadlineIndex] = useState(0);
+
+    const headlineItems = articles.slice(0, 5);
+
+    useEffect(() => {
+      if (headlineItems.length === 0) return;
+      const timer = setInterval(() => {
+        setHeadlineIndex((prev) => (prev + 1) % headlineItems.length);
+      }, 4000);
+      return () => clearInterval(timer);
+    }, [headlineItems.length]);
+
+    const headline = headlineItems[headlineIndex];
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-[minmax(180px,auto)] animate-[fadeIn_0.3s_ease-out]">
@@ -472,9 +491,33 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
               )}
               <div className="flex-1 flex flex-col justify-between min-w-0">
                 <div>
-                  <span className="inline-block px-3 py-1 mb-3 text-xs font-bold text-white rounded-full bg-[var(--brand-600)]">
-                    HEADLINE · {headline.category}
-                  </span>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="inline-block px-3 py-1 text-xs font-bold text-white rounded-full bg-[var(--brand-600)]">
+                      HEADLINE · {headline.category}
+                    </span>
+                    {headlineItems.length > 1 && (
+                      <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                        <span>{headlineIndex + 1} / {headlineItems.length}</span>
+                        <div className="flex gap-1">
+                          {headlineItems.map((item, idx) => (
+                            <button
+                              key={item.id || idx}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHeadlineIndex(idx);
+                              }}
+                              className={`w-2 h-2 rounded-full ${
+                                idx === headlineIndex
+                                  ? "bg-[var(--brand-600)]"
+                                  : "bg-gray-300"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3 leading-tight line-clamp-2">
                     {headline.title}
                   </h2>

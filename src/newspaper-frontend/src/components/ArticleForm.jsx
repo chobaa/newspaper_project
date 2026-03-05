@@ -3,6 +3,7 @@ import ReactQuill, { Quill } from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 
 import { getDisplaySettings } from "../utils/displaySettings";
+import { useBrandSettings } from "../context/BrandSettingsContext";
 import BlotFormatter from 'quill-blot-formatter';
 Quill.register('modules/blotFormatter', BlotFormatter);
 
@@ -40,6 +41,9 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   // 관리자 보기 설정 적용 (기본값: inherit, 1.125rem, 100%, 1.8)
   const display = getDisplaySettings();
 
+  // 브랜드 설정 (기본 기자명 등)
+  const { settings: brandSettings } = useBrandSettings();
+
   // 에디터 접근을 위한 Ref
   const quillRef = useRef(null);
 
@@ -47,6 +51,25 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imgSize, setImgSize] = useState({ width: "", height: "" });
   const [keepRatio, setKeepRatio] = useState(true);
+
+  // 이미지 업로드 API 호출 헬퍼
+  const uploadImageToServer = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/images", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error("이미지 업로드에 실패했습니다.");
+    }
+
+    // 백엔드는 String 을 그대로 반환하므로 text 로 받는다
+    const url = await res.text();
+    return url.trim();
+  };
 
   const modules = useMemo(() => ({
     toolbar: {
@@ -123,6 +146,98 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     editor.clipboard.addMatcher(Node.ELEMENT_NODE, pasteMatcher);
   }, []);
 
+  // 이미지 업로드(툴바/드래그/붙여넣기) 커스터마이징
+  useEffect(() => {
+    const quill = quillRef.current?.getEditor();
+    if (!quill) return;
+
+    const toolbar = quill.getModule("toolbar");
+    if (toolbar) {
+      toolbar.addHandler("image", () => {
+        const input = document.createElement("input");
+        input.setAttribute("type", "file");
+        input.setAttribute("accept", "image/*");
+        input.click();
+
+        input.onchange = async () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          try {
+            const range = quill.getSelection(true);
+            const url = await uploadImageToServer(file);
+            quill.insertEmbed(range ? range.index : quill.getLength(), "image", url, "user");
+          } catch (e) {
+            console.error(e);
+            alert("이미지 업로드 중 오류가 발생했습니다.");
+          }
+        };
+      });
+    }
+
+    const handleFiles = async (files, insertIndex) => {
+      const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+      if (images.length === 0) return;
+
+      let index = insertIndex ?? quill.getSelection(true)?.index ?? quill.getLength();
+
+      for (const file of images) {
+        try {
+          const url = await uploadImageToServer(file);
+          quill.insertEmbed(index, "image", url, "user");
+          index += 1;
+          quill.insertText(index, "\n", "user");
+          index += 1;
+        } catch (e) {
+          console.error(e);
+          alert("이미지 업로드 중 오류가 발생했습니다.");
+          break;
+        }
+      }
+    };
+
+    const editorRoot = quill.root;
+
+    const handleDrop = (e) => {
+      if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) {
+        return;
+      }
+      const hasImage = Array.from(e.dataTransfer.files).some((f) =>
+        f.type && f.type.startsWith("image/")
+      );
+      if (!hasImage) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const selection = quill.getSelection(true);
+      const insertIndex = selection ? selection.index : quill.getLength();
+      handleFiles(e.dataTransfer.files, insertIndex);
+    };
+
+    const handlePaste = (e) => {
+      if (!e.clipboardData || !e.clipboardData.files || e.clipboardData.files.length === 0) {
+        return;
+      }
+      const hasImage = Array.from(e.clipboardData.files).some((f) =>
+        f.type && f.type.startsWith("image/")
+      );
+      if (!hasImage) return;
+
+      e.preventDefault();
+      const selection = quill.getSelection(true);
+      const insertIndex = selection ? selection.index : quill.getLength();
+      handleFiles(e.clipboardData.files, insertIndex);
+    };
+
+    editorRoot.addEventListener("drop", handleDrop);
+    editorRoot.addEventListener("paste", handlePaste);
+
+    return () => {
+      editorRoot.removeEventListener("drop", handleDrop);
+      editorRoot.removeEventListener("paste", handlePaste);
+    };
+  }, []);
+
   useEffect(() => {
     const editor = quillRef.current?.getEditor();
     if (!editor) return;
@@ -191,21 +306,31 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const plainText = content.replace(/<[^>]+>/g, '');
+    const normalizeContentHtml = (html) => {
+      if (!html) return "";
+      return html
+        .replace(/&amp;nbsp;/g, " ")
+        .replace(/&nbsp;/g, " ");
+    };
+
+    const cleanedContent = normalizeContentHtml(content);
+    const plainText = cleanedContent.replace(/<[^>]+>/g, '');
 
     if (!title || plainText.trim().length === 0) {
       alert("제목과 내용을 모두 입력해주세요.");
       return;
     }
 
+    const defaultReporterName = brandSettings?.defaultReporterName || "기자";
+
     onSave({
       id: initialArticle?.id,
       title,
       category,
       desc: plainText.slice(0, 100) + (plainText.length > 100 ? "..." : ""),
-      content,
+      content: cleanedContent,
       date: initialArticle?.date || new Date().toLocaleDateString(),
-      author: initialArticle?.author || "관리자",
+      author: initialArticle?.author || defaultReporterName,
     });
   };
 

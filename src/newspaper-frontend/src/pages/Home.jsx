@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import NewsSection from "../components/NewsSection";
 import Sidebar from "../components/Sidebar";
@@ -7,6 +8,7 @@ import Footer from "../components/Footer";
 import AdminPanel from "../components/AdminPanel";
 
 export default function Home() {
+  const location = useLocation();
   const [category, setCategory] = useState("전체");
   const [categoryVersion, setCategoryVersion] = useState(0);
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -42,6 +44,14 @@ export default function Home() {
     // 동일 카테고리를 다시 눌러도 리스트 뷰로 돌아가도록 버전 증가
     setCategoryVersion((v) => v + 1);
   };
+
+  // 약관/정책 페이지 등에서 카테고리 선택 후 돌아올 때 처리
+  useEffect(() => {
+    const stateCategory = location.state && location.state.category;
+    if (!stateCategory) return;
+    handleSelectCategory(stateCategory);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state && location.state.category]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative">

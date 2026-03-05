@@ -18,6 +18,7 @@ const buildDefault = () => {
     bottomBannerText: "하단 띠 배너 광고",
     bottomBannerImageUrl: "",
     showBottomBanner: true,
+    defaultReporterName: "기자",
   };
 };
 

@@ -25,19 +25,22 @@ public class BrandSettings {
     private String bottomBannerText;
     private String bottomBannerImageUrl;
     private Boolean showBottomBanner = true;
+    private String defaultReporterName;
 
-    public BrandSettings(String brandId, String siteName, String sidebarTopText, String sidebarLongText, String bottomBannerText) {
+    public BrandSettings(String brandId, String siteName, String sidebarTopText, String sidebarLongText, String bottomBannerText, String defaultReporterName) {
         this.brandId = brandId;
         this.siteName = siteName;
         this.sidebarTopText = sidebarTopText;
         this.sidebarLongText = sidebarLongText;
         this.bottomBannerText = bottomBannerText != null ? bottomBannerText : "하단 띠 배너 광고";
+        this.defaultReporterName = defaultReporterName;
     }
 
     public void update(String siteName, String logoImageUrl,
                        String sidebarTopText, String sidebarTopImageUrl, Boolean showSidebarTop,
                        String sidebarLongText, String sidebarLongImageUrl, Boolean showSidebarLong,
-                       String bottomBannerText, String bottomBannerImageUrl, Boolean showBottomBanner) {
+                       String bottomBannerText, String bottomBannerImageUrl, Boolean showBottomBanner,
+                       String defaultReporterName) {
         if (siteName != null) this.siteName = siteName;
         if (logoImageUrl != null) this.logoImageUrl = logoImageUrl;
         if (sidebarTopText != null) this.sidebarTopText = sidebarTopText;
@@ -49,5 +52,6 @@ public class BrandSettings {
         if (bottomBannerText != null) this.bottomBannerText = bottomBannerText;
         if (bottomBannerImageUrl != null) this.bottomBannerImageUrl = bottomBannerImageUrl;
         if (showBottomBanner != null) this.showBottomBanner = showBottomBanner;
+        if (defaultReporterName != null) this.defaultReporterName = defaultReporterName;
     }
 }

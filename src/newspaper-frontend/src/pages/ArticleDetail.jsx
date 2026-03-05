@@ -56,26 +56,6 @@ export default function ArticleDetail() {
     fetchArticle();
   }, [article, id]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <p className="text-xl text-gray-500 mb-4">기사를 불러오는 중입니다...</p>
-      </div>
-    );
-  }
-
-  // 데이터가 없으면 예외 처리
-  if (!article) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <p className="text-xl text-gray-500 mb-4">기사 정보를 찾을 수 없습니다.</p>
-        <button onClick={() => navigate(-1)} className="text-[var(--brand-600)] hover:underline">
-          뒤로 가기
-        </button>
-      </div>
-    );
-  }
-
   // 실제 기사 목록에서 동일 카테고리 추천 기사 불러오기
   useEffect(() => {
     const fetchRelated = async () => {
@@ -110,6 +90,13 @@ export default function ArticleDetail() {
     fetchRelated();
   }, [article]);
 
+  const normalizeContentHtml = (html) => {
+    if (!html) return "";
+    return html
+      .replace(/&amp;nbsp;/g, " ")
+      .replace(/&nbsp;/g, " ");
+  };
+
   const extractImageUrlsFromContent = (html) => {
     const regex = /<img[^>]+src="([^">]+)"/g;
     const urls = [];
@@ -125,7 +112,8 @@ export default function ArticleDetail() {
 
   const handleUpdateArticle = async (updatedArticle) => {
     try {
-      const imageUrls = extractImageUrlsFromContent(updatedArticle.content);
+      const cleanedContent = normalizeContentHtml(updatedArticle.content);
+      const imageUrls = extractImageUrlsFromContent(cleanedContent);
 
       const res = await fetch(`/api/articles/${article.id}`, {
         method: "PUT",
@@ -135,7 +123,7 @@ export default function ArticleDetail() {
         body: JSON.stringify({
           title: updatedArticle.title,
           category: updatedArticle.category,
-          content: updatedArticle.content,
+          content: cleanedContent,
           writer: updatedArticle.author,
           imageUrls,
         }),
@@ -149,7 +137,7 @@ export default function ArticleDetail() {
         ...prev,
         title: updatedArticle.title,
         category: updatedArticle.category,
-        content: updatedArticle.content,
+        content: cleanedContent,
         author: updatedArticle.author,
       }));
 
@@ -160,6 +148,26 @@ export default function ArticleDetail() {
       alert(e.message || "기사 수정 중 오류가 발생했습니다.");
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-xl text-gray-500 mb-4">기사를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
+
+  // 데이터가 없으면 예외 처리
+  if (!article) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-xl text-gray-500 mb-4">기사 정보를 찾을 수 없습니다.</p>
+        <button onClick={() => navigate(-1)} className="text-[var(--brand-600)] hover:underline">
+          뒤로 가기
+        </button>
+      </div>
+    );
+  }
 
   const handleDeleteArticle = async () => {
     if (!window.confirm("이 기사를 삭제하시겠습니까?")) return;
@@ -263,7 +271,7 @@ export default function ArticleDetail() {
               <div className="ql-snow mb-12">
                 <div
                   className="ql-editor !p-0 !min-h-0 article-content"
-                  dangerouslySetInnerHTML={{ __html: article.content }}
+                  dangerouslySetInnerHTML={{ __html: normalizeContentHtml(article.content) }}
                 />
               </div>
 

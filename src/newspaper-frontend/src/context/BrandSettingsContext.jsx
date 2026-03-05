@@ -15,6 +15,7 @@ const buildDefaults = (brand) => ({
   bottomBannerText: "하단 띠 배너 광고",
   bottomBannerImageUrl: "",
   showBottomBanner: true,
+  defaultReporterName: "기자",
 });
 
 export function BrandSettingsProvider({ children }) {
