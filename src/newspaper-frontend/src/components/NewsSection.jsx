@@ -241,12 +241,43 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
   const GroupWidget = ({ title, targetCategories }) => {
     const filtered = articles.filter((a) => targetCategories.includes(a.category));
     const primaryCategory = targetCategories[0];
+    const hasPairTitle = Array.isArray(targetCategories) && targetCategories.length === 2;
+
+    const renderTitle = () => {
+      if (!hasPairTitle) return title;
+      const [left, right] = targetCategories;
+      return (
+        <div className="inline-flex items-center gap-1 text-base md:text-lg">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate("/", { state: { category: left } });
+            }}
+            className="font-extrabold text-gray-900 hover:text-[var(--brand-700)] transition-colors"
+          >
+            {left}
+          </button>
+          <span className="text-gray-400 font-semibold mx-0.5">/</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate("/", { state: { category: right } });
+            }}
+            className="font-extrabold text-gray-900 hover:text-[var(--brand-700)] transition-colors"
+          >
+            {right}
+          </button>
+        </div>
+      );
+    };
 
     if (filtered.length === 0) {
       return (
         <Widget
-          title={title}
-          onTitleClick={() => {
+          title={renderTitle()}
+          onTitleClick={hasPairTitle ? undefined : () => {
             if (!primaryCategory) return;
             navigate("/", { state: { category: primaryCategory } });
           }}
@@ -262,8 +293,8 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
 
     return (
       <Widget
-        title={title}
-        onTitleClick={() => {
+        title={renderTitle()}
+        onTitleClick={hasPairTitle ? undefined : () => {
           if (!primaryCategory) return;
           navigate("/", { state: { category: primaryCategory } });
         }}

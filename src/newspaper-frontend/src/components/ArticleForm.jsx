@@ -37,6 +37,18 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   const [title, setTitle] = useState(initialArticle?.title || "");
   const [category, setCategory] = useState(initialArticle?.category || "정치");
   const [content, setContent] = useState(initialArticle?.content || "");
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+
+  const categories = [
+    "정치",
+    "경제",
+    "사회",
+    "문화",
+    "교육",
+    "인터뷰칼럼",
+    "경기도소식",
+    "동영상",
+  ];
 
   // 관리자 보기 설정 적용 (기본값: inherit, 1.125rem, 100%, 1.8)
   const display = getDisplaySettings();
@@ -369,21 +381,50 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-1">
-            <label className="block text-sm font-bold text-gray-700 mb-2">카테고리</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              카테고리
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsCategoryOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-800 bg-white hover:bg-gray-50 transition"
             >
-              <option value="정치">정치</option>
-              <option value="경제">경제</option>
-              <option value="사회">사회</option>
-              <option value="문화">문화</option>
-              <option value="교육">교육</option>
-              <option value="인터뷰칼럼">인터뷰칼럼</option>
-              <option value="경기도소식">경기도소식</option>
-              <option value="동영상">동영상</option>
-            </select>
+              <span className="font-semibold">
+                {category || "카테고리를 선택하세요"}
+              </span>
+              <span className="text-xs text-gray-500">
+                {isCategoryOpen ? "접기 ▲" : "펼치기 ▼"}
+              </span>
+            </button>
+            {isCategoryOpen && (
+              <div className="mt-2 p-2 rounded-lg border border-gray-200 bg-gray-50 space-y-2 animate-[fadeIn_0.15s_ease-out]">
+                <p className="text-[11px] text-gray-500 mb-1">
+                  원하는 카테고리를 선택하세요.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((c) => {
+                    const isActive = c === category;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setCategory(c);
+                          setIsCategoryOpen(false);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                          isActive
+                            ? "bg-[var(--brand-600)] border-[var(--brand-600)] text-white shadow-sm"
+                            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <div className="md:col-span-3">
             <label className="block text-sm font-bold text-gray-700 mb-2">기사 제목</label>

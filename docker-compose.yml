@@ -1,41 +1,50 @@
 version: '3.8'
 
 services:
-  # 1. 프론트엔드 + Nginx (Primary: 80, Secondary: 8081)
+  # 1. 프론트엔드 및 Nginx (Reverse Proxy)
   frontend:
     container_name: newspaper-frontend
     build:
       context: .
       dockerfile: deployment/Dockerfile.frontend
     ports:
-      - "80:80"
-      - "8081:8081"
+      - "80:80"        # HTTP (인증서 발급 및 리다이렉트)
+      - "443:443"      # HTTPS (보안 연결)
+      - "8081:8081"    # Secondary Site (기존 방식 유지)
+    volumes:
+      - ./deployment/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/certbot/conf:/etc/letsencrypt:ro
+      - ./data/certbot/www:/var/www/certbot:ro
     depends_on:
       - backend
     restart: always
 
-  # 2. 백엔드 서버
+  # 2. 백엔드 API 서버 (Spring Boot)
   backend:
     container_name: newspaper-api
-    build: ./src/api-server  # api-server 폴더에 있는 Dockerfile을 보고 빌드해라
+    build: ./src/api-server
     env_file:
-      - .env  # .env에 있는 변수(MAIL_USERNAME, MAIL_PASSWORD 등)를 컨테이너에 주입
+      - .env
     ports:
       - "8080:8080"
     environment:
-      # 도커 내부에서는 'localhost' 대신 서비스 이름(db)을 써야 통신이 됨
+      # DB 설정
       - SPRING_DATASOURCE_URL=jdbc:mysql://newspaper-db:3306/newspaper?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
-
+      # AWS/MinIO 설정 (Region 에러 해결 핵심)
       - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
       - CLOUD_AWS_S3_ENDPOINT=http://minio:9000
+      # CORS: HTTPS 도메인 허용
+      - CORS_ALLOWED_ORIGINS=https://xn--vg1b002am5bc0y3ga.com,https://www.xn--vg1b002am5bc0y3ga.com
     depends_on:
       - db
       - minio
     restart: always
 
-  # 3. 데이터베이스
+  # 3. 데이터베이스 (MySQL)
   db:
     image: mysql:8.0
     container_name: newspaper-db
@@ -50,7 +59,7 @@ services:
     volumes:
       - ./data/mysql:/var/lib/mysql
 
-  # 4. 오브젝트 스토리지
+  # 4. 오브젝트 스토리지 (MinIO)
   minio:
     image: minio/minio
     container_name: newspaper-minio
@@ -63,3 +72,12 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - ./data/minio:/data
+
+  # 5. SSL 인증서 자동 갱신 (Certbot)
+  certbot:
+    image: certbot/certbot
+    container_name: newspaper-certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"

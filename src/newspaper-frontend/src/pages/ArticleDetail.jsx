@@ -26,10 +26,10 @@ export default function ArticleDetail() {
     window.scrollTo(0, 0);
   }, []);
 
-  // 서버에서 기사 상세 조회 (URL로 직접 접근 시)
+  // 서버에서 기사 상세 조회 (상세 진입 시마다 조회수 증가)
   useEffect(() => {
     const fetchArticle = async () => {
-      if (article || !id) return;
+      if (!id) return;
       try {
         const res = await fetch(`/api/articles/${id}`);
         if (!res.ok) {
@@ -54,7 +54,7 @@ export default function ArticleDetail() {
       }
     };
     fetchArticle();
-  }, [article, id]);
+  }, [id]);
 
   // 실제 기사 목록에서 동일 카테고리 추천 기사 불러오기
   useEffect(() => {

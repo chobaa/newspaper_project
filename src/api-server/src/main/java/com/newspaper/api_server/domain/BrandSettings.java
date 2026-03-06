@@ -17,12 +17,23 @@ public class BrandSettings {
     private String siteName;
     private String logoImageUrl;
     private String sidebarTopText;
+
+    // 여러 개 배너 정보를 JSON 문자열로 저장하므로 TEXT 컬럼으로 확장
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String sidebarTopImageUrl;
+
     private String sidebarLongText;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String sidebarLongImageUrl;
     private Boolean showSidebarTop = true;
     private Boolean showSidebarLong = true;
     private String bottomBannerText;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String bottomBannerImageUrl;
     private Boolean showBottomBanner = true;
     private String defaultReporterName;

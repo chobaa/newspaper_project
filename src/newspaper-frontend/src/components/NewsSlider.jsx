@@ -17,6 +17,17 @@ export default function NewsSlider() {
           return;
         }
         const data = await res.json();
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const parseDate = (regDate) => {
+          if (!regDate) return null;
+          const d = new Date(regDate);
+          if (Number.isNaN(d.getTime())) return null;
+          return d;
+        };
         // 본문 HTML에서 첫 번째 <img>를 찾은 기사만 사용
         const mapped = data
           .map((a) => {
@@ -33,20 +44,29 @@ export default function NewsSlider() {
             };
           })
           .filter((a) => !!a.img); // 이미지가 있는 기사만 슬라이더에 노출
-
-        const popular = [...mapped]
+        
+        // 최근 30일 기준 많이 본 뉴스
+        const last30Days = mapped.filter((a) => {
+          const d = parseDate(a.regDate);
+          return d && d >= thirtyDaysAgo;
+        });
+        const popularBase = last30Days.length > 0 ? last30Days : mapped;
+        const popular = [...popularBase]
           .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
           .slice(0, 5);
-        const latest = [...mapped]
-          .sort((a, b) => {
-            const da = a.regDate || "";
-            const db = b.regDate || "";
-            return db.localeCompare(da);
-          })
+
+        // 오늘 기준 실시간 급상승 (오늘 조회수 기준)
+        const todayList = mapped.filter((a) => {
+          const d = parseDate(a.regDate);
+          return d && d >= todayStart;
+        });
+        const realtimeBase = todayList.length > 0 ? todayList : popularBase;
+        const realtime = [...realtimeBase]
+          .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
           .slice(0, 5);
 
         setPopularArticles(popular);
-        setLatestArticles(latest);
+        setLatestArticles(realtime);
         setCurrentIndex(0);
       } catch (e) {
         // ignore
