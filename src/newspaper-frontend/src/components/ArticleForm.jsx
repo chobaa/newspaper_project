@@ -66,6 +66,9 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
 
   // 이미지 업로드 API 호출 헬퍼
   const uploadImageToServer = async (file) => {
+    if (!file || !file.size) {
+      throw new Error("파일이 비어 있습니다.");
+    }
     const formData = new FormData();
     formData.append("file", file);
 
@@ -74,13 +77,49 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
       body: formData,
     });
 
+    const text = await res.text();
     if (!res.ok) {
-      throw new Error("이미지 업로드에 실패했습니다.");
+      let msg = text;
+      try {
+        const json = JSON.parse(text);
+        msg = [json.error, json.detail].filter(Boolean).join(": ") || text;
+      } catch (_) {}
+      if (!msg) msg = `서버 오류 (${res.status})`;
+      throw new Error(`이미지 업로드 실패. ${msg} MinIO가 켜져 있는지 확인해 주세요.`);
     }
 
-    // 백엔드는 String 을 그대로 반환하므로 text 로 받는다
-    const url = await res.text();
-    return url.trim();
+    return text.trim();
+  };
+
+  /** 본문 HTML 내 data: URL 이미지를 서버 업로드 URL로 치환 (저장 전 호출) */
+  const convertDataUrlsToUploadedUrls = async (html) => {
+    if (!html || !html.includes('src="data:')) return html;
+    const dataUrlRegex = /src="(data:[^"]+)"/g;
+    const dataUrls = [];
+    let match;
+    while ((match = dataUrlRegex.exec(html)) !== null) {
+      if (!dataUrls.includes(match[1])) dataUrls.push(match[1]);
+    }
+    const urlMap = {};
+    for (const dataUrl of dataUrls) {
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const ext = (blob.type === "image/png") ? "png" : (blob.type === "image/gif") ? "gif" : "jpg";
+        const file = new File([blob], `image.${ext}`, { type: blob.type });
+        const url = await uploadImageToServer(file);
+        urlMap[dataUrl] = url;
+      } catch (err) {
+        console.error("data URL 이미지 업로드 실패:", err);
+        alert("이미지 업로드에 실패한 항목이 있어 저장이 중단됩니다. 이미지를 제거하거나 다시 첨부해 주세요.");
+        throw err;
+      }
+    }
+    let out = html;
+    for (const [dataUrl, url] of Object.entries(urlMap)) {
+      out = out.split(`src="${dataUrl}"`).join(`src="${url}"`);
+    }
+    return out;
   };
 
   const modules = useMemo(() => ({
@@ -158,13 +197,16 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     editor.clipboard.addMatcher(Node.ELEMENT_NODE, pasteMatcher);
   }, []);
 
-  // 이미지 업로드(툴바/드래그/붙여넣기) 커스터마이징
+  // 이미지 업로드(툴바 버튼 / 드래그 / 붙여넣기) — 에디터·툴바 준비 후 툴바 핸들러 등록
   useEffect(() => {
-    const quill = quillRef.current?.getEditor();
-    if (!quill) return;
+    let cancelled = false;
 
-    const toolbar = quill.getModule("toolbar");
-    if (toolbar) {
+    const registerImageHandler = () => {
+      const editor = quillRef.current?.getEditor?.() ?? quillRef.current;
+      if (!editor?.getModule) return false;
+      const toolbar = editor.getModule("toolbar");
+      if (!toolbar || typeof toolbar.addHandler !== "function") return false;
+
       toolbar.addHandler("image", () => {
         const input = document.createElement("input");
         input.setAttribute("type", "file");
@@ -172,18 +214,35 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         input.click();
 
         input.onchange = async () => {
-          const file = input.files && input.files[0];
-          if (!file) return;
+          const file = input.files?.[0];
+          if (!file || !file.type.startsWith("image/")) return;
+          const q = quillRef.current?.getEditor?.() ?? quillRef.current;
+          if (!q) return;
           try {
-            const range = quill.getSelection(true);
+            const index = q.getSelection?.(true)?.index ?? q.getLength?.() ?? 0;
             const url = await uploadImageToServer(file);
-            quill.insertEmbed(range ? range.index : quill.getLength(), "image", url, "user");
+            if (cancelled) return;
+            q.insertEmbed(index, "image", url, "user");
           } catch (e) {
             console.error(e);
-            alert("이미지 업로드 중 오류가 발생했습니다.");
+            alert("이미지 업로드에 실패했습니다. 서버와 MinIO가 동작 중인지 확인해 주세요.");
           }
         };
       });
+      return true;
+    };
+
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      registerImageHandler();
+    }, 200);
+
+    const quill = quillRef.current?.getEditor?.() ?? quillRef.current;
+    if (!quill) {
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
 
     const handleFiles = async (files, insertIndex) => {
@@ -257,6 +316,8 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     editorRoot.addEventListener("paste", handlePaste);
 
     return () => {
+      cancelled = true;
+      clearTimeout(timer);
       editorRoot.removeEventListener("drop", handleDrop);
       editorRoot.removeEventListener("paste", handlePaste);
     };
@@ -293,6 +354,33 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     };
   }, []); // 빈 배열: 컴포넌트가 처음 나타날 때 한 번만 실행
 
+  // 이미지 선택 시 Delete/Backspace로 이미지 제거
+  useEffect(() => {
+    if (!selectedImage) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = e.target?.tagName?.toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const editor = quillRef.current?.getEditor?.() ?? quillRef.current;
+      if (!editor) return;
+
+      const blot = Quill.find(selectedImage);
+      if (blot && typeof blot.remove === "function") {
+        e.preventDefault();
+        blot.remove();
+        editor.root.normalize(); // 빈 줄 등 정리
+        const html = editor.root.innerHTML;
+        setContent(html);
+        setSelectedImage(null);
+        setImgSize({ width: "", height: "" });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedImage]);
+
   // 입력창 값 변경 시 이미지 크기 실시간 적용
   const handleSizeChange = (e) => {
     const { name, value } = e.target;
@@ -328,7 +416,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const normalizeContentHtml = (html) => {
       if (!html) return "";
@@ -337,11 +425,17 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         .replace(/&nbsp;/g, " ");
     };
 
-    const cleanedContent = normalizeContentHtml(content);
+    let cleanedContent = normalizeContentHtml(content);
     const plainText = cleanedContent.replace(/<[^>]+>/g, '');
 
     if (!title || plainText.trim().length === 0) {
       alert("제목과 내용을 모두 입력해주세요.");
+      return;
+    }
+
+    try {
+      cleanedContent = await convertDataUrlsToUploadedUrls(cleanedContent);
+    } catch (err) {
       return;
     }
 

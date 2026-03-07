@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplaySettings } from '../utils/displaySettings';
+import { decodeHtmlEntities } from '../utils/text';
 
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
@@ -235,11 +236,11 @@ export default function ArticleDetail() {
                   {article.category}
                 </span>
                 <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-6 leading-tight">
-                  {article.title}
+                  {decodeHtmlEntities(article.title)}
                 </h1>
                 <div className="flex items-center justify-between text-sm text-gray-500">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-gray-700">{article.author} 기자</span>
+                    <span className="font-bold text-gray-700">{article.author}</span>
                     <span className="w-px h-3 bg-gray-300"></span>
                     <span>입력 {article.date}</span>
                   </div>
@@ -294,14 +295,14 @@ export default function ArticleDetail() {
                           <div className="hidden sm:block w-20 h-14 bg-gray-100 rounded-md overflow-hidden flex-shrink-0">
                             <img
                               src={news.img}
-                              alt={news.title}
+                              alt={decodeHtmlEntities(news.title)}
                               className="w-full h-full object-cover"
                             />
                           </div>
                         )}
                         <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
                           <span className="text-gray-700 truncate group-hover:underline group-hover:text-[var(--brand-600)]">
-                            · {news.title}
+                            · {decodeHtmlEntities(news.title)}
                           </span>
                           <span className="text-xs text-gray-400 flex-shrink-0">
                             {news.date}

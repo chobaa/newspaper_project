@@ -18,19 +18,17 @@ public class ArticleService {
     // 1. 기사 저장 (이미 업로드된 URL들을 연결)
     @Transactional
     public Long saveArticle(ArticleSaveRequest request) {
-        Article article = new Article(
-                request.title(),
-                request.category(),
-                request.content(),
-                request.writer()
-        );
+        String title = request.title() != null ? request.title() : "";
+        String category = request.category() != null ? request.category() : "";
+        String content = request.content() != null ? request.content() : "";
+        String writer = request.writer() != null ? request.writer() : "";
 
-        // 프론트엔드에서 받은 URL 리스트를 순회하며 Image 엔티티 생성
+        Article article = new Article(title, category, content, writer);
+
         if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
             for (String url : request.imageUrls()) {
-                // URL에서 파일명 추출 (단순 저장용)
-                String originalName = url.substring(url.lastIndexOf("/") + 1);
-
+                if (url == null || url.isBlank()) continue;
+                String originalName = url.contains("/") ? url.substring(url.lastIndexOf("/") + 1) : url;
                 Image image = new Image(url, originalName, article);
                 article.addImage(image);
             }
@@ -80,18 +78,17 @@ public class ArticleService {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
 
-        article.updateBasic(
-                request.title(),
-                request.category(),
-                request.content(),
-                request.writer()
-        );
+        String title = request.title() != null ? request.title() : "";
+        String category = request.category() != null ? request.category() : "";
+        String content = request.content() != null ? request.content() : "";
+        String writer = request.writer() != null ? request.writer() : "";
+        article.updateBasic(title, category, content, writer);
 
-        // 이미지 목록 교체
         article.clearImages();
         if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
             for (String url : request.imageUrls()) {
-                String originalName = url.substring(url.lastIndexOf("/") + 1);
+                if (url == null || url.isBlank()) continue;
+                String originalName = url.contains("/") ? url.substring(url.lastIndexOf("/") + 1) : url;
                 Image image = new Image(url, originalName, article);
                 article.addImage(image);
             }

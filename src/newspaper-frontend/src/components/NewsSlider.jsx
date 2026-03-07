@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { decodeHtmlEntities } from "../utils/text";
 
 export default function NewsSlider() {
   const [activeTab, setActiveTab] = useState("많이 본 뉴스");
@@ -145,7 +146,7 @@ export default function NewsSlider() {
               className="font-bold text-lg leading-snug text-gray-800 cursor-pointer transition-colors hover:text-[var(--brand-600)]"
               onClick={() => goDetail(current)}
             >
-              {current.title}
+              {decodeHtmlEntities(current.title)}
             </h4>
           </>
         )}
@@ -167,7 +168,7 @@ export default function NewsSlider() {
               onClick={() => goDetail(item)}
               className="inline-block w-full"
             >
-              • {item.title}
+              • {decodeHtmlEntities(item.title)}
             </span>
           </div>
         ))}

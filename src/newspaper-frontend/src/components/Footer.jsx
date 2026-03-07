@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 
-export default function Footer() {
-  // 상단 메뉴 리스트
+export default function Footer({ onLoginClick, isAdmin }) {
   const footerLinks = [
     { name: "회사소개", bold: false, path: "/company" },
     { name: "서비스이용약관", bold: false, path: "/terms" },
@@ -14,10 +13,9 @@ export default function Footer() {
   return (
     <footer className="bg-gray-100 border-t border-gray-200 mt-auto">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        
-        {/* 1. 상단 링크 메뉴 (약관 등) */}
+        {/* 1. 상단 링크 메뉴 (약관 등) + 관리자 로그인 */}
         <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-0 mb-6 text-sm text-gray-600">
-          {footerLinks.map((link, index) => (
+          {footerLinks.map((link) => (
             <div key={link.name} className="flex items-center">
               <Link
                 to={link.path}
@@ -28,12 +26,18 @@ export default function Footer() {
               >
                 {link.name}
               </Link>
-              {/* 마지막 항목이 아닐 때만 구분선(|) 표시 */}
-              {index !== footerLinks.length - 1 && (
-                <span className="text-gray-300 text-[10px]">|</span>
-              )}
+              <span className="text-gray-300 text-[10px]">|</span>
             </div>
           ))}
+          {onLoginClick && (
+            <button
+              type="button"
+              onClick={onLoginClick}
+              className="hover:underline px-3 py-1 cursor-pointer transition-colors hover:text-[var(--brand-600)]"
+            >
+              {isAdmin ? "로그아웃" : "관리자 로그인"}
+            </button>
+          )}
         </div>
 
         {/* 2. 하단 회사 정보 */}

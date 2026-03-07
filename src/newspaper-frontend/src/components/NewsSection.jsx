@@ -4,10 +4,11 @@ import Widget from "./Widget";
 import ArticleForm from "./ArticleForm";
 import AdBanner from "./AdBanner";
 import { useBrandSettings } from "../context/BrandSettingsContext";
+import { decodeHtmlEntities } from "../utils/text";
 
 const PAGE_SIZE = 10;
 
-export default function NewsSection({ category, categoryVersion, isAdmin, search }) {
+export default function NewsSection({ category, categoryVersion, isAdmin, search, searchType = "titleAndContent" }) {
   const [articles, setArticles] = useState([]);
   const [isWriting, setIsWriting] = useState(false);
   const [editingArticle, setEditingArticle] = useState(null);
@@ -127,24 +128,34 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
 
   const handleSaveArticle = async (newArticle) => {
     try {
-      const imageUrls = extractImageUrlsFromContent(newArticle.content);
+      const imageUrls = extractImageUrlsFromContent(newArticle.content || "");
+      const payload = {
+        title: newArticle.title != null ? String(newArticle.title) : "",
+        category: newArticle.category != null ? String(newArticle.category) : "",
+        content: newArticle.content != null ? String(newArticle.content) : "",
+        writer: newArticle.author != null ? String(newArticle.author) : "",
+        imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+      };
 
       const res = await fetch("/api/articles", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title: newArticle.title,
-          category: newArticle.category,
-          content: newArticle.content,
-          writer: newArticle.author,
-          imageUrls,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        throw new Error("기사 저장에 실패했습니다.");
+        const text = await res.text();
+        let msg = "기사 저장에 실패했습니다.";
+        try {
+          const json = JSON.parse(text);
+          if (json.detail) msg += " " + json.detail;
+          else if (json.error) msg = json.error;
+        } catch (_) {
+          if (text) msg += " " + text;
+        }
+        throw new Error(msg);
       }
 
       const newId = await res.json();
@@ -184,25 +195,40 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
   };
 
   const handleUpdateArticle = async (updatedArticle) => {
+    const id = updatedArticle?.id;
+    if (id == null || id === "" || String(id) === "undefined") {
+      alert("기사 ID가 없어 수정할 수 없습니다.");
+      return;
+    }
     try {
-      const imageUrls = extractImageUrlsFromContent(updatedArticle.content);
+      const imageUrls = extractImageUrlsFromContent(updatedArticle.content || "");
+      const payload = {
+        title: updatedArticle.title != null ? String(updatedArticle.title) : "",
+        category: updatedArticle.category != null ? String(updatedArticle.category) : "",
+        content: updatedArticle.content != null ? String(updatedArticle.content) : "",
+        writer: updatedArticle.author != null ? String(updatedArticle.author) : "",
+        imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+      };
 
-      const res = await fetch(`/api/articles/${updatedArticle.id}`, {
+      const res = await fetch(`/api/articles/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title: updatedArticle.title,
-          category: updatedArticle.category,
-          content: updatedArticle.content,
-          writer: updatedArticle.author,
-          imageUrls,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        throw new Error("기사 수정에 실패했습니다.");
+        const text = await res.text();
+        let msg = "기사 수정에 실패했습니다.";
+        try {
+          const json = JSON.parse(text);
+          if (json.detail) msg += " " + json.detail;
+          else if (json.error) msg = json.error;
+        } catch (_) {
+          if (text) msg += " " + text;
+        }
+        throw new Error(msg);
       }
 
       const firstImage =
@@ -310,7 +336,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                 <div className="w-32 h-24 md:w-40 md:h-28 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                   <img
                     src={item.img}
-                    alt={item.title}
+                    alt={decodeHtmlEntities(item.title)}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 </div>
@@ -318,10 +344,10 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
               <div className="flex-1 min-w-0 flex flex-col justify-between">
                 <div>
                   <h4 className="font-bold text-sm md:text-base text-gray-900 mb-1 line-clamp-2 break-all group-hover:text-[var(--brand-700)]">
-                    {item.title}
+                    {decodeHtmlEntities(item.title)}
                   </h4>
                   <p className="text-xs md:text-sm text-gray-500 line-clamp-2 break-all">
-                    {item.desc}
+                    {decodeHtmlEntities(item.desc)}
                   </p>
                 </div>
                 <div className="mt-2 text-[11px] text-gray-400 flex items-center gap-2">
@@ -343,6 +369,138 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
 
 
   // =================================================================
+  // 검색 결과 전용 뷰 (검색창에서 엔터 시 이동)
+  // =================================================================
+  const SearchResultsView = () => {
+    const keyword = (search || "").trim().toLowerCase();
+    let filteredArticles = articles;
+    if (keyword) {
+      filteredArticles = articles.filter((a) => {
+        const title = a.title?.toLowerCase() || "";
+        const desc = a.desc?.toLowerCase() || "";
+        if (searchType === "title") return title.includes(keyword);
+        if (searchType === "content") return desc.includes(keyword);
+        return title.includes(keyword) || desc.includes(keyword);
+      });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filteredArticles.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    const displayList = filteredArticles.slice(start, end);
+
+    return (
+      <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+        <div className="flex justify-between items-end border-b-2 border-gray-900 pb-3 mb-6">
+          <h2 className="text-3xl font-black text-gray-900">
+            검색 결과 {keyword ? <span className="text-[var(--brand-600)]">「{search}」</span> : ""}
+          </h2>
+        </div>
+        <div className="space-y-6">
+          {displayList.map((news) => (
+            <div
+              key={news.id}
+              onClick={() => goDetail(news)}
+              className="flex flex-col sm:flex-row gap-6 group cursor-pointer border-b border-gray-100 pb-6 last:border-0 hover:bg-gray-50/50 p-2 rounded-xl transition-colors"
+            >
+              {news.img && (
+                <div className="w-full sm:w-48 h-32 bg-gray-200 rounded-lg overflow-hidden shrink-0 relative">
+                  <img src={news.img} alt="news" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  <span className="absolute top-2 left-2 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm bg-[var(--brand-600)]/90">{news.category}</span>
+                </div>
+              )}
+              <div className="flex-1 flex flex-col justify-between py-1">
+                <div>
+                  <h3 className="font-bold text-xl text-gray-900 leading-tight mb-2 transition-colors break-all group-hover:text-[var(--brand-600)]">
+                    {decodeHtmlEntities(news.title)}
+                  </h3>
+                  <p className="text-sm text-gray-500 line-clamp-2 break-all">
+                    {decodeHtmlEntities(news.desc)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-xs text-gray-400 font-medium"><span className="text-[var(--brand-500)]">{news.author}</span> • <span>{news.date}</span></div>
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <button
+                        className="text-xs border border-gray-200 bg-white px-2 py-1 rounded hover:bg-[var(--brand-50)] text-[var(--brand-600)]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingArticle(news);
+                          setIsWriting(true);
+                        }}
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteArticle(e, news.id)}
+                        className="text-xs border border-gray-200 bg-white px-2 py-1 rounded hover:bg-red-50 text-red-600"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {displayList.length === 0 && (
+            <div className="text-center py-20 text-gray-400">
+              {keyword ? `「${search}」에 대한 검색 결과가 없습니다.` : "검색어를 입력한 뒤 검색창에서 엔터를 눌러주세요."}
+            </div>
+          )}
+
+          {filteredArticles.length > 0 && (
+            <div className="flex flex-col items-center gap-3 pt-4">
+              <div className="flex flex-wrap justify-center gap-2">
+                {(() => {
+                  const maxButtons = 10;
+                  let startBtn = Math.max(1, safePage - 4);
+                  let endBtn = Math.min(totalPages, startBtn + maxButtons - 1);
+                  startBtn = Math.max(1, endBtn - maxButtons + 1);
+                  const arr = [];
+                  for (let i = startBtn; i <= endBtn; i++) arr.push(i);
+                  return arr;
+                })().map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`min-w-[32px] px-2 py-1 rounded border text-sm ${
+                      p === safePage
+                        ? "text-white border-[var(--brand-600)] bg-[var(--brand-600)]"
+                        : "text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className={`px-3 py-1 rounded border ${safePage === 1 ? "text-gray-300 border-gray-200 cursor-not-allowed" : "text-gray-700 border-gray-300 hover:bg-gray-50"}`}
+                >
+                  이전
+                </button>
+                <span className="text-sm text-gray-500">{safePage} / {totalPages}</span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className={`px-3 py-1 rounded border ${safePage === totalPages ? "text-gray-300 border-gray-200 cursor-not-allowed" : "text-gray-700 border-gray-300 hover:bg-gray-50"}`}
+                >
+                  다음
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // =================================================================
   // 카테고리별 전체 리스트 뷰
   // =================================================================
   const CategoryListView = () => {
@@ -352,6 +510,8 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
       filteredArticles = filteredArticles.filter((a) => {
         const title = a.title?.toLowerCase() || "";
         const desc = a.desc?.toLowerCase() || "";
+        if (searchType === "title") return title.includes(keyword);
+        if (searchType === "content") return desc.includes(keyword);
         return title.includes(keyword) || desc.includes(keyword);
       });
     }
@@ -372,7 +532,15 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
             <button
               onClick={() => {
                 setIsWriting(true);
-                setEditingArticle(null);
+                setEditingArticle({
+                  id: undefined,
+                  title: "",
+                  category,
+                  content: "",
+                  desc: "",
+                  date: new Date().toLocaleDateString(),
+                  author: "",
+                });
               }}
               className="text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md flex items-center gap-2 transition-transform hover:scale-105 bg-[var(--brand-600)] hover:bg-[var(--brand-700)]"
             >
@@ -383,7 +551,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
         {isWriting ? (
           <ArticleForm
             initialArticle={editingArticle}
-            onSave={editingArticle ? handleUpdateArticle : handleSaveArticle}
+            onSave={editingArticle?.id != null ? handleUpdateArticle : handleSaveArticle}
             onCancel={() => {
               setIsWriting(false);
               setEditingArticle(null);
@@ -407,10 +575,10 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
                 <div className="flex-1 flex flex-col justify-between py-1">
                   <div>
                   <h3 className="font-bold text-xl text-gray-900 leading-tight mb-2 transition-colors break-all group-hover:text-[var(--brand-600)]">
-                    {news.title}
+                    {decodeHtmlEntities(news.title)}
                   </h3>
                   <p className="text-sm text-gray-500 line-clamp-2 break-all">
-                    {news.desc}
+                    {decodeHtmlEntities(news.desc)}
                   </p>
                   </div>
                   <div className="flex items-center justify-between mt-3">
@@ -555,58 +723,61 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
           {headline ? (
             <div
               onClick={() => goDetail(headline)}
-              className="flex flex-col md:flex-row gap-6"
+              className="flex flex-col"
             >
-              {headline.img && (
-                <div className="w-full md:w-1/2 h-52 md:h-64 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0">
-                  <img
-                    src={headline.img}
-                    alt={headline.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
-              )}
-              <div className="flex-1 flex flex-col justify-between min-w-0">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="inline-block px-3 py-1 text-xs font-bold text-white rounded-full bg-[var(--brand-600)]">
-                      HEADLINE · {headline.category}
-                    </span>
-                    {headlineItems.length > 1 && (
-                      <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                        <span>{headlineIndex + 1} / {headlineItems.length}</span>
-                        <div className="flex gap-1">
-                          {headlineItems.map((item, idx) => (
-                            <button
-                              key={item.id || idx}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setHeadlineIndex(idx);
-                              }}
-                              className={`w-2 h-2 rounded-full ${
-                                idx === headlineIndex
-                                  ? "bg-[var(--brand-600)]"
-                                  : "bg-gray-300"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
+              {/* 배지·인디케이터: 이미지/제목 위에 한 줄로 */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="inline-block px-3 py-1 text-xs font-bold text-white rounded-full bg-[var(--brand-600)]">
+                  HEADLINE · {headline.category}
+                </span>
+                {headlineItems.length > 1 && (
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                    <span>{headlineIndex + 1} / {headlineItems.length}</span>
+                    <div className="flex gap-1">
+                      {headlineItems.map((item, idx) => (
+                        <button
+                          key={item.id || idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHeadlineIndex(idx);
+                          }}
+                          className={`w-2 h-2 rounded-full ${
+                            idx === headlineIndex
+                              ? "bg-[var(--brand-600)]"
+                              : "bg-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3 leading-tight line-clamp-2">
-                    {headline.title}
-                  </h2>
-                  {/* 본문 요약은 여러 줄까지 아래로 자연스럽게 내려가도록. 긴 단어도 줄바꿈되게 처리 */}
-                  <p className="text-sm md:text-base text-gray-600 break-all">
-                    {headline.desc || "최신 헤드라인 기사를 확인해 보세요."}
-                  </p>
-                </div>
-                <div className="mt-4 text-xs text-gray-400 flex items-center gap-3">
-                  <span>{headline.author}</span>
-                  <span className="w-px h-3 bg-gray-300" />
-                  <span>{headline.date}</span>
+                )}
+              </div>
+              {/* 이미지와 제목 상단·하단 맞춤: 같은 높이, 보이는 줄 수만 조절 */}
+              <div className="flex flex-col md:flex-row gap-6 md:items-stretch">
+                {headline.img && (
+                  <div className="w-full md:w-1/2 h-52 md:h-64 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0">
+                    <img
+                      src={headline.img}
+                      alt={decodeHtmlEntities(headline.title)}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 flex flex-col justify-between min-w-0 md:h-64 overflow-hidden">
+                  <div className="min-h-0 flex flex-col gap-2">
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight line-clamp-2">
+                      {decodeHtmlEntities(headline.title)}
+                    </h2>
+                    <p className="text-sm md:text-base text-gray-600 break-all line-clamp-[6] md:line-clamp-4 flex-1 min-h-0">
+                      {decodeHtmlEntities(headline.desc) || "최신 헤드라인 기사를 확인해 보세요."}
+                    </p>
+                  </div>
+                  <div className="mt-4 text-xs text-gray-400 flex items-center gap-3 flex-shrink-0">
+                    <span>{headline.author}</span>
+                    <span className="w-px h-3 bg-gray-300" />
+                    <span>{headline.date}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -625,5 +796,11 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
     );
   };
 
-  return <>{category === "전체" ? <MainGridView /> : <CategoryListView />}</>;
+  return (
+    <>
+      {category === "전체" && <MainGridView />}
+      {category === "검색결과" && <SearchResultsView />}
+      {category !== "전체" && category !== "검색결과" && <CategoryListView />}
+    </>
+  );
 }
