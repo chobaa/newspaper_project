@@ -139,6 +139,18 @@ public class AdminController {
         imageService.deleteImageByUrl(url);
     }
 
+    // ========== 이미지 정리 (고아 객체 청소) ==========
+
+    /**
+     * DB(기사 이미지 + 브랜드 설정)에서 사용되지 않는 S3/MinIO 객체를 일괄 삭제한다.
+     * 관리자 탭에서 수동으로 실행하는 용도.
+     */
+    @PostMapping("/api/admin/cleanup-orphan-images")
+    public Map<String, Integer> cleanupOrphanImages() {
+        int deleted = imageService.cleanupOrphanObjects();
+        return Map.of("deleted", deleted);
+    }
+
     // ========== 브랜드 설정 (로고/배너) ==========
 
     @PutMapping("/api/admin/brand-settings")

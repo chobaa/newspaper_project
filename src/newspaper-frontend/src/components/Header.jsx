@@ -36,7 +36,7 @@ export default function Header({
 
   // ✅ 요청하신 8개 카테고리로 변경
   const menus = [
-    "정치", "경제", "사회", "문화", "교육", "인터뷰칼럼", "경기도소식", "동영상"
+    "성남시정", "성남시의회", "사회/복지", "교육/문화", "경기도정", "경기도의회", "인터뷰칼럼", "동영상뉴스"
   ];
 
   return (
@@ -51,7 +51,12 @@ export default function Header({
           >
             {brand.logoImageUrl ? (
               <div className="h-16 max-w-[400px] flex-shrink-0 transition-all group-hover:scale-[1.02]">
-                <img src={brand.logoImageUrl} alt={brand.siteName} className="h-full w-auto max-w-full object-contain object-left" />
+                <img
+                  src={brand.logoImageUrl}
+                  alt={brand.siteName}
+                  loading="lazy"
+                  className="h-full w-auto max-w-full object-contain object-left"
+                />
               </div>
             ) : (
               <>
@@ -68,8 +73,8 @@ export default function Header({
           </div>
         </div>
 
-        {/* 중앙: 네비게이션 (화면 정중앙) */}
-        <nav className="absolute left-1/2 -translate-x-1/2 flex items-center h-16 space-x-1 overflow-x-auto scrollbar-none">
+        {/* 중앙: 네비게이션 (로고와 검색 아이콘 사이에서 가로로 정렬) */}
+        <nav className="flex-1 flex items-center justify-center space-x-1 overflow-x-auto scrollbar-none px-4">
           {menus.map((menu) => (
             <button
               key={menu}

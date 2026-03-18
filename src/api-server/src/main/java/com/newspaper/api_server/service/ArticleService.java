@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ArticleService {
 
     private final ArticleRepository articleRepository;
+    private final ImageService imageService;
 
     // 1. 기사 저장 (이미 업로드된 URL들을 연결)
     @Transactional
@@ -61,7 +62,21 @@ public class ArticleService {
     // 4. 기사 삭제
     @Transactional
     public void deleteArticle(Long id) {
-        articleRepository.deleteById(id);
+        Article article = articleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
+
+        // 연관된 이미지 URL을 먼저 스토리지에서 삭제
+        if (article.getImages() != null) {
+            article.getImages().forEach(img -> {
+                String url = img.getUrl();
+                if (url != null && !url.isBlank()) {
+                    imageService.deleteImageByUrl(url);
+                }
+            });
+        }
+
+        // JPA에서 Article 삭제 시, 연관 Image 엔티티는 orphanRemoval = true 로 자동 삭제
+        articleRepository.delete(article);
     }
 
     // 5. 기사 본문만 수정 (수정요청 메일 처리용)

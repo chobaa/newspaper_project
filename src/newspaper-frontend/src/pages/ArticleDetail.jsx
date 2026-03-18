@@ -41,7 +41,7 @@ export default function ArticleDetail() {
         const dateStr = data.regDate ? data.regDate.substring(0, 10) : "";
         const mapped = {
           id: data.id,
-          category: data.category || "정치",
+          category: data.category || "성남시정",
           title: data.title,
           content: data.content,
           date: dateStr,
@@ -75,7 +75,7 @@ export default function ArticleDetail() {
             const imgMatch = a.content
               ? a.content.match(/<img[^>]+src="([^">]+)"/)
               : null;
-            const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
+            const firstImage = imgMatch && imgMatch[1] ? decodeHtmlEntities(imgMatch[1]) : null;
             return {
               id: a.id,
               title: a.title,
@@ -98,12 +98,74 @@ export default function ArticleDetail() {
       .replace(/&nbsp;/g, " ");
   };
 
+  const toEmbeddedVideoHtml = (rawUrl) => {
+    const url = String(rawUrl || "").trim();
+    if (!url) return null;
+
+    if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)) {
+      return `<video controls src="${url}"></video>`;
+    }
+
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\./, "");
+      if (host === "youtube.com" || host === "m.youtube.com") {
+        const v = u.searchParams.get("v");
+        if (v) return `<iframe class="ql-video" src="https://www.youtube.com/embed/${v}" allowfullscreen="true"></iframe>`;
+        const shortsMatch = u.pathname.match(/^\/shorts\/([^/]+)/);
+        if (shortsMatch?.[1]) return `<iframe class="ql-video" src="https://www.youtube.com/embed/${shortsMatch[1]}" allowfullscreen="true"></iframe>`;
+        const embedMatch = u.pathname.match(/^\/embed\/([^/]+)/);
+        if (embedMatch?.[1]) return `<iframe class="ql-video" src="${url}" allowfullscreen="true"></iframe>`;
+      }
+      if (host === "youtu.be") {
+        const id = u.pathname.replace("/", "").trim();
+        if (id) return `<iframe class="ql-video" src="https://www.youtube.com/embed/${id}" allowfullscreen="true"></iframe>`;
+      }
+      if (host === "vimeo.com") {
+        const id = u.pathname.replace("/", "").trim();
+        if (id) return `<iframe class="ql-video" src="https://player.vimeo.com/video/${id}" allowfullscreen="true"></iframe>`;
+      }
+      return `<iframe class="ql-video" src="${url}" allowfullscreen="true"></iframe>`;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  // 저장된 본문에 iframe이 아니라 "링크/URL 텍스트"로 들어간 경우도 플레이어로 변환
+  const enhanceMediaEmbeds = (html) => {
+    const input = normalizeContentHtml(html);
+    if (!input) return "";
+
+    // <a href="URL">URL</a> 형태를 변환
+    let out = input.replace(
+      /<a\b[^>]*href="(https?:\/\/[^"]+)"[^>]*>\s*\1\s*<\/a>/gi,
+      (_, href) => toEmbeddedVideoHtml(href) || `<a href="${href}" target="_blank" rel="noreferrer">${href}</a>`
+    );
+
+    // <p>URL</p> 같이 URL만 있는 문단을 변환
+    out = out.replace(
+      /<p>\s*(https?:\/\/[^<\s]+)\s*<\/p>/gi,
+      (_, url) => `<p>${toEmbeddedVideoHtml(url) || `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`}</p>`
+    );
+
+    return out;
+  };
+
+  // 수정 화면에서는 "렌더링 결과"와 동일하게 보이도록, 변환된 HTML을 초기값으로 넘긴다.
+  const getEditorInitialArticle = (a) => {
+    if (!a) return a;
+    return {
+      ...a,
+      content: enhanceMediaEmbeds(a.content),
+    };
+  };
+
   const extractImageUrlsFromContent = (html) => {
     const regex = /<img[^>]+src="([^">]+)"/g;
     const urls = [];
     let match;
     while ((match = regex.exec(html)) !== null) {
-      const src = match[1];
+      const src = decodeHtmlEntities(match[1] || "");
       if (src && !src.startsWith("data:")) {
         urls.push(src);
       }
@@ -221,7 +283,7 @@ export default function ArticleDetail() {
 
           {isEditing ? (
             <ArticleForm
-              initialArticle={article}
+              initialArticle={getEditorInitialArticle(article)}
               onSave={handleUpdateArticle}
               onCancel={() => {
                 setIsEditing(false);
@@ -272,7 +334,7 @@ export default function ArticleDetail() {
               <div className="ql-snow mb-12">
                 <div
                   className="ql-editor !p-0 !min-h-0 article-content"
-                  dangerouslySetInnerHTML={{ __html: normalizeContentHtml(article.content) }}
+                  dangerouslySetInnerHTML={{ __html: enhanceMediaEmbeds(article.content) }}
                 />
               </div>
 
@@ -296,6 +358,7 @@ export default function ArticleDetail() {
                             <img
                               src={news.img}
                               alt={decodeHtmlEntities(news.title)}
+                              loading="lazy"
                               className="w-full h-full object-cover"
                             />
                           </div>
@@ -343,6 +406,27 @@ export default function ArticleDetail() {
           border-radius: 8px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
           display: block;
+        }
+        /* Quill video embed (iframe.ql-video) + pasted <iframe> + <video> */
+        .article-content iframe,
+        .article-content .ql-video {
+          width: 100%;
+          max-width: 100%;
+          aspect-ratio: 16 / 9;
+          height: auto;
+          border: 0;
+          border-radius: 12px;
+          display: block;
+          margin: 20px auto;
+          background: #000;
+        }
+        .article-content video {
+          width: 100%;
+          max-width: 100%;
+          border-radius: 12px;
+          display: block;
+          margin: 20px auto;
+          background: #000;
         }
         .article-content p {
           margin-bottom: 1.2rem;
