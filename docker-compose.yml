@@ -56,6 +56,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - ./data/mysql:/var/lib/mysql
+    restart: always
 
   # 4. 오브젝트 스토리지 (MinIO)
   minio:
@@ -70,6 +71,7 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - ./data/minio:/data
+    restart: always
 
   # 5. SSL 인증서 자동 갱신 (Certbot)
   certbot:
@@ -79,3 +81,4 @@ services:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: always
