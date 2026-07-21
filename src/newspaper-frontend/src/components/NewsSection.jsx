@@ -5,6 +5,7 @@ import ArticleForm from "./ArticleForm";
 import AdBanner from "./AdBanner";
 import { useBrandSettings } from "../context/BrandSettingsContext";
 import { decodeHtmlEntities } from "../utils/text";
+import useArticles from "../hooks/useArticles";
 
 const PAGE_SIZE = 10;
 
@@ -50,15 +51,17 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
     return [];
   };
 
+  const articlesMode = category === "전체" ? "home" : "full";
+  // 홈페이지(카테고리=전체)는 응답을 줄이기 위해 home용 엔드포인트를 사용합니다.
+  const { data: rawArticles } = useArticles({ mode: articlesMode, limit: 80 });
+
   useEffect(() => {
     // 백엔드에서 실제 기사 목록 불러오기
-    const fetchArticles = async () => {
+    if (!rawArticles) return;
+
+    const fetchArticles = () => {
       try {
-        const res = await fetch("/api/articles");
-        if (!res.ok) {
-          throw new Error("기사 목록을 불러오지 못했습니다.");
-        }
-        const data = await res.json();
+        const data = rawArticles;
         const normalizeContentHtml = (html) => {
           if (!html) return "";
           return html
@@ -160,7 +163,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
     };
 
     fetchArticles();
-  }, []);
+  }, [rawArticles]);
 
   useEffect(() => {
     if (!isAdmin) setIsWriting(false);

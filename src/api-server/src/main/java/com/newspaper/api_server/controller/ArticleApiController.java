@@ -1,6 +1,7 @@
 package com.newspaper.api_server.controller;
 
 import com.newspaper.api_server.dto.ArticleResponse;
+import com.newspaper.api_server.dto.ArticleHomeResponse;
 import com.newspaper.api_server.dto.ArticleSaveRequest;
 import com.newspaper.api_server.service.ArticleService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,12 @@ public class ArticleApiController {
     @GetMapping("/api/articles")
     public List<ArticleResponse> findAll() {
         return articleService.getArticles();
+    }
+
+    // 홈페이지용 요약 기사 목록 조회 (페이로드 축소: content 앞부분만)
+    @GetMapping("/api/articles/home")
+    public List<ArticleHomeResponse> findHome(@RequestParam(defaultValue = "80") int limit) {
+        return articleService.getHomeArticles(limit);
     }
 
     // 기사 조회 (조회수 증가)

@@ -2,12 +2,14 @@ package com.newspaper.api_server.service;
 
 import com.newspaper.api_server.domain.Article;
 import com.newspaper.api_server.domain.Image;
+import com.newspaper.api_server.dto.ArticleHomeResponse; // (홈페이지용 DTO)
 import com.newspaper.api_server.dto.ArticleResponse; // (아래에서 만들 예정)
 import com.newspaper.api_server.dto.ArticleSaveRequest;
 import com.newspaper.api_server.repository.ArticleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +46,18 @@ public class ArticleService {
         return articleRepository.findAllByOrderByIdDesc()
                 .stream()
                 .map(ArticleResponse::from)
+                .toList();
+    }
+
+    // 2-1. 홈페이지용 요약 기사 목록 조회 (content 일부만 반환)
+    @Transactional(readOnly = true)
+    public java.util.List<ArticleHomeResponse> getHomeArticles(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        var pageable = PageRequest.of(0, safeLimit);
+
+        return articleRepository.findAllByOrderByIdDesc(pageable)
+                .stream()
+                .map(ArticleHomeResponse::from)
                 .toList();
     }
 
