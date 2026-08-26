@@ -7,7 +7,8 @@
 param(
     [string]$ArchiveDir,
     [int]$KeepCount = 12,
-    [switch]$SkipMinio
+    [switch]$SkipMinio,
+    [int]$ReadyTimeoutMinutes = 30
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,23 +35,55 @@ function Write-Log {
     Add-Content -Path $LogPath -Value $line -Encoding UTF8
 }
 
+# 재부팅 직후 밀린 일정으로 실행되면 Docker Desktop이 아직 기동 중일 수 있다.
+# 그래서 준비될 때까지 기다렸다가 진행한다. 즉시 실패하면 다음 달까지 백업이 없다.
+function Wait-ForDockerReady {
+    param([int]$TimeoutMinutes = 30, [int]$IntervalSeconds = 20)
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    $lastReason = ""
+
+    while ($true) {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
+        $version = (docker version --format "{{.Server.Version}}" 2>&1)
+        $dockerOk = ($LASTEXITCODE -eq 0)
+
+        $containerOk = $false
+        if ($dockerOk) {
+            $running = (docker ps --filter "name=$MysqlContainer" --filter "status=running" --format "{{.Names}}" 2>&1)
+            $containerOk = ($LASTEXITCODE -eq 0) -and (@($running) -contains $MysqlContainer)
+        }
+
+        $ErrorActionPreference = $prevEap
+
+        if ($dockerOk -and $containerOk) { return $version }
+
+        $lastReason = if (-not $dockerOk) {
+            "Docker 엔진에 연결할 수 없음 ($version)"
+        } else {
+            "MySQL 컨테이너가 아직 실행 중이 아님: $MysqlContainer"
+        }
+
+        if ((Get-Date) -ge $deadline) {
+            throw "$TimeoutMinutes 분을 기다렸지만 준비되지 않았습니다. $lastReason"
+        }
+
+        Write-Log "대기 중 ($lastReason) - $IntervalSeconds 초 후 재시도" "WARN"
+        Start-Sleep -Seconds $IntervalSeconds
+    }
+}
+
 $exitCode = 0
 
 try {
     Write-Log "===== 월간 백업 시작 ====="
     Write-Log "보관 위치: $ArchiveDir (최대 $KeepCount 개 유지)"
 
-    # --- 1) 사전 점검: docker 및 DB 컨테이너가 살아있는지 ---
-    $dockerVersion = (docker version --format "{{.Server.Version}}" 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker에 연결할 수 없습니다. Docker Desktop이 실행 중인지 확인하세요. ($dockerVersion)"
-    }
+    # --- 1) 사전 점검: docker 및 DB 컨테이너가 준비될 때까지 대기 ---
+    $dockerVersion = Wait-ForDockerReady -TimeoutMinutes $ReadyTimeoutMinutes
     Write-Log "Docker 서버 버전: $dockerVersion"
-
-    $running = (docker ps --filter "name=$MysqlContainer" --filter "status=running" --format "{{.Names}}" 2>&1)
-    if ($running -notcontains $MysqlContainer) {
-        throw "MySQL 컨테이너가 실행 중이 아닙니다: $MysqlContainer"
-    }
     Write-Log "MySQL 컨테이너 확인: $MysqlContainer"
 
     # 이전 실행이 강제 종료되어 남은 미완성 아카이브 정리
