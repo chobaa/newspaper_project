@@ -43,6 +43,9 @@ export default function AdminPanel() {
   // AI summary loading state per log
   const [summaryLoading, setSummaryLoading] = useState({});
 
+  // 이미지 정리 실행 상태
+  const [cleanupRunning, setCleanupRunning] = useState(false);
+
   const fetchConfig = async () => {
     try {
       setError(null);
@@ -159,6 +162,28 @@ export default function AdminPanel() {
       alert("AI 요약 오류: " + e.message);
     } finally {
       setSummaryLoading(prev => ({ ...prev, [logId]: false }));
+    }
+  };
+
+  const runImageCleanup = async () => {
+    if (!window.confirm("DB에 연결되지 않은 이미지 파일을 버킷에서 정리합니다.\n브랜드 배너/로고 등도 함께 고려되지만,\n실행 전 반드시 최신 백업을 권장합니다.\n계속하시겠습니까?")) {
+      return;
+    }
+    setCleanupRunning(true);
+    try {
+      const res = await fetch("/api/admin/cleanup-orphan-images", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        throw new Error("정리 API 호출 실패");
+      }
+      const data = await res.json().catch(() => ({}));
+      const deleted = data.deleted ?? 0;
+      alert(`이미지 정리가 완료되었습니다.\n삭제된 객체: ${deleted}개`);
+    } catch (e) {
+      alert("이미지 정리 중 오류가 발생했습니다: " + (e.message || ""));
+    } finally {
+      setCleanupRunning(false);
     }
   };
 
@@ -535,6 +560,30 @@ export default function AdminPanel() {
           </button>
           {displayDirty && <span className="text-sm text-orange-600 self-center">✱ 변경사항이 있습니다.</span>}
         </div>
+      </section>
+
+      {/* ===== 이미지 정리 ===== */}
+      <section>
+        <h3 className="text-lg font-bold text-gray-800 mb-2">이미지 정리</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          DB(기사 이미지 및 브랜드 설정)에 연결되어 있지 않은 S3/MinIO 객체를 찾아 일괄 삭제합니다.
+          주기적으로 실행하면 더미 데이터로 인한 저장소 낭비를 줄일 수 있습니다.
+        </p>
+        <button
+          type="button"
+          onClick={runImageCleanup}
+          disabled={cleanupRunning}
+          className={`px-5 py-2 rounded-lg font-bold text-white ${
+            cleanupRunning
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-red-600 hover:bg-red-700"
+          }`}
+        >
+          {cleanupRunning ? "이미지 정리 중..." : "이미지 정리 실행"}
+        </button>
+        <p className="mt-2 text-xs text-gray-400">
+          * 실행 전 데이터베이스/S3 백업을 권장합니다. 현재 연결된 기사/배너에서 사용 중인 URL은 삭제되지 않습니다.
+        </p>
       </section>
 
       {/* ===== 브랜드 / 배너 설정 ===== */}

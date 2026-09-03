@@ -17,3 +17,9 @@ _work/
 
 # 환경변수 파일 무시 (보안 필수)
 .env
+
+# 백업 파일 무시
+.localbackups/
+localbackups/
+locakbackups/
+backups/

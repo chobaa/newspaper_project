@@ -12,8 +12,10 @@ public class Image {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String url; // MinIO에 저장된 사진 주소 (http://localhost:9000/...)
+    @Column(length = 512)
+    private String url; // MinIO 공개 URL 또는 /api/public/images/... 형태
 
+    @Column(length = 256)
     private String originalFileName; // 사용자가 올린 원래 파일명 (예: photo.jpg)
 
     @ManyToOne(fetch = FetchType.LAZY) // 필요할 때만 기사 정보를 가져온다 (성능 최적화)

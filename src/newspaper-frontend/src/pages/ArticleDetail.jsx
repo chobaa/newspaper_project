@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplaySettings } from '../utils/displaySettings';
+import { decodeHtmlEntities } from '../utils/text';
 
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
@@ -26,10 +27,10 @@ export default function ArticleDetail() {
     window.scrollTo(0, 0);
   }, []);
 
-  // 서버에서 기사 상세 조회 (URL로 직접 접근 시)
+  // 서버에서 기사 상세 조회 (상세 진입 시마다 조회수 증가)
   useEffect(() => {
     const fetchArticle = async () => {
-      if (article || !id) return;
+      if (!id) return;
       try {
         const res = await fetch(`/api/articles/${id}`);
         if (!res.ok) {
@@ -40,7 +41,7 @@ export default function ArticleDetail() {
         const dateStr = data.regDate ? data.regDate.substring(0, 10) : "";
         const mapped = {
           id: data.id,
-          category: data.category || "정치",
+          category: data.category || "성남시정",
           title: data.title,
           content: data.content,
           date: dateStr,
@@ -54,7 +55,7 @@ export default function ArticleDetail() {
       }
     };
     fetchArticle();
-  }, [article, id]);
+  }, [id]);
 
   // 실제 기사 목록에서 동일 카테고리 추천 기사 불러오기
   useEffect(() => {
@@ -74,7 +75,7 @@ export default function ArticleDetail() {
             const imgMatch = a.content
               ? a.content.match(/<img[^>]+src="([^">]+)"/)
               : null;
-            const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
+            const firstImage = imgMatch && imgMatch[1] ? decodeHtmlEntities(imgMatch[1]) : null;
             return {
               id: a.id,
               title: a.title,
@@ -97,12 +98,74 @@ export default function ArticleDetail() {
       .replace(/&nbsp;/g, " ");
   };
 
+  const toEmbeddedVideoHtml = (rawUrl) => {
+    const url = String(rawUrl || "").trim();
+    if (!url) return null;
+
+    if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)) {
+      return `<video controls src="${url}"></video>`;
+    }
+
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\./, "");
+      if (host === "youtube.com" || host === "m.youtube.com") {
+        const v = u.searchParams.get("v");
+        if (v) return `<iframe class="ql-video" src="https://www.youtube.com/embed/${v}" allowfullscreen="true"></iframe>`;
+        const shortsMatch = u.pathname.match(/^\/shorts\/([^/]+)/);
+        if (shortsMatch?.[1]) return `<iframe class="ql-video" src="https://www.youtube.com/embed/${shortsMatch[1]}" allowfullscreen="true"></iframe>`;
+        const embedMatch = u.pathname.match(/^\/embed\/([^/]+)/);
+        if (embedMatch?.[1]) return `<iframe class="ql-video" src="${url}" allowfullscreen="true"></iframe>`;
+      }
+      if (host === "youtu.be") {
+        const id = u.pathname.replace("/", "").trim();
+        if (id) return `<iframe class="ql-video" src="https://www.youtube.com/embed/${id}" allowfullscreen="true"></iframe>`;
+      }
+      if (host === "vimeo.com") {
+        const id = u.pathname.replace("/", "").trim();
+        if (id) return `<iframe class="ql-video" src="https://player.vimeo.com/video/${id}" allowfullscreen="true"></iframe>`;
+      }
+      return `<iframe class="ql-video" src="${url}" allowfullscreen="true"></iframe>`;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  // 저장된 본문에 iframe이 아니라 "링크/URL 텍스트"로 들어간 경우도 플레이어로 변환
+  const enhanceMediaEmbeds = (html) => {
+    const input = normalizeContentHtml(html);
+    if (!input) return "";
+
+    // <a href="URL">URL</a> 형태를 변환
+    let out = input.replace(
+      /<a\b[^>]*href="(https?:\/\/[^"]+)"[^>]*>\s*\1\s*<\/a>/gi,
+      (_, href) => toEmbeddedVideoHtml(href) || `<a href="${href}" target="_blank" rel="noreferrer">${href}</a>`
+    );
+
+    // <p>URL</p> 같이 URL만 있는 문단을 변환
+    out = out.replace(
+      /<p>\s*(https?:\/\/[^<\s]+)\s*<\/p>/gi,
+      (_, url) => `<p>${toEmbeddedVideoHtml(url) || `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`}</p>`
+    );
+
+    return out;
+  };
+
+  // 수정 화면에서는 "렌더링 결과"와 동일하게 보이도록, 변환된 HTML을 초기값으로 넘긴다.
+  const getEditorInitialArticle = (a) => {
+    if (!a) return a;
+    return {
+      ...a,
+      content: enhanceMediaEmbeds(a.content),
+    };
+  };
+
   const extractImageUrlsFromContent = (html) => {
     const regex = /<img[^>]+src="([^">]+)"/g;
     const urls = [];
     let match;
     while ((match = regex.exec(html)) !== null) {
-      const src = match[1];
+      const src = decodeHtmlEntities(match[1] || "");
       if (src && !src.startsWith("data:")) {
         urls.push(src);
       }
@@ -220,7 +283,7 @@ export default function ArticleDetail() {
 
           {isEditing ? (
             <ArticleForm
-              initialArticle={article}
+              initialArticle={getEditorInitialArticle(article)}
               onSave={handleUpdateArticle}
               onCancel={() => {
                 setIsEditing(false);
@@ -235,11 +298,11 @@ export default function ArticleDetail() {
                   {article.category}
                 </span>
                 <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-6 leading-tight">
-                  {article.title}
+                  {decodeHtmlEntities(article.title)}
                 </h1>
                 <div className="flex items-center justify-between text-sm text-gray-500">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-gray-700">{article.author} 기자</span>
+                    <span className="font-bold text-gray-700">{article.author}</span>
                     <span className="w-px h-3 bg-gray-300"></span>
                     <span>입력 {article.date}</span>
                   </div>
@@ -271,7 +334,7 @@ export default function ArticleDetail() {
               <div className="ql-snow mb-12">
                 <div
                   className="ql-editor !p-0 !min-h-0 article-content"
-                  dangerouslySetInnerHTML={{ __html: normalizeContentHtml(article.content) }}
+                  dangerouslySetInnerHTML={{ __html: enhanceMediaEmbeds(article.content) }}
                 />
               </div>
 
@@ -294,14 +357,15 @@ export default function ArticleDetail() {
                           <div className="hidden sm:block w-20 h-14 bg-gray-100 rounded-md overflow-hidden flex-shrink-0">
                             <img
                               src={news.img}
-                              alt={news.title}
+                              alt={decodeHtmlEntities(news.title)}
+                              loading="lazy"
                               className="w-full h-full object-cover"
                             />
                           </div>
                         )}
                         <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
                           <span className="text-gray-700 truncate group-hover:underline group-hover:text-[var(--brand-600)]">
-                            · {news.title}
+                            · {decodeHtmlEntities(news.title)}
                           </span>
                           <span className="text-xs text-gray-400 flex-shrink-0">
                             {news.date}
@@ -342,6 +406,27 @@ export default function ArticleDetail() {
           border-radius: 8px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
           display: block;
+        }
+        /* Quill video embed (iframe.ql-video) + pasted <iframe> + <video> */
+        .article-content iframe,
+        .article-content .ql-video {
+          width: 100%;
+          max-width: 100%;
+          aspect-ratio: 16 / 9;
+          height: auto;
+          border: 0;
+          border-radius: 12px;
+          display: block;
+          margin: 20px auto;
+          background: #000;
+        }
+        .article-content video {
+          width: 100%;
+          max-width: 100%;
+          border-radius: 12px;
+          display: block;
+          margin: 20px auto;
+          background: #000;
         }
         .article-content p {
           margin-bottom: 1.2rem;

@@ -2,35 +2,36 @@ package com.newspaper.api_server.service;
 
 import com.newspaper.api_server.domain.Article;
 import com.newspaper.api_server.domain.Image;
+import com.newspaper.api_server.dto.ArticleHomeResponse; // (홈페이지용 DTO)
 import com.newspaper.api_server.dto.ArticleResponse; // (아래에서 만들 예정)
 import com.newspaper.api_server.dto.ArticleSaveRequest;
 import com.newspaper.api_server.repository.ArticleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
 public class ArticleService {
 
     private final ArticleRepository articleRepository;
+    private final ImageService imageService;
 
     // 1. 기사 저장 (이미 업로드된 URL들을 연결)
     @Transactional
     public Long saveArticle(ArticleSaveRequest request) {
-        Article article = new Article(
-                request.title(),
-                request.category(),
-                request.content(),
-                request.writer()
-        );
+        String title = request.title() != null ? request.title() : "";
+        String category = request.category() != null ? request.category() : "";
+        String content = request.content() != null ? request.content() : "";
+        String writer = request.writer() != null ? request.writer() : "";
 
-        // 프론트엔드에서 받은 URL 리스트를 순회하며 Image 엔티티 생성
+        Article article = new Article(title, category, content, writer);
+
         if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
             for (String url : request.imageUrls()) {
-                // URL에서 파일명 추출 (단순 저장용)
-                String originalName = url.substring(url.lastIndexOf("/") + 1);
-
+                if (url == null || url.isBlank()) continue;
+                String originalName = url.contains("/") ? url.substring(url.lastIndexOf("/") + 1) : url;
                 Image image = new Image(url, originalName, article);
                 article.addImage(image);
             }
@@ -45,6 +46,18 @@ public class ArticleService {
         return articleRepository.findAllByOrderByIdDesc()
                 .stream()
                 .map(ArticleResponse::from)
+                .toList();
+    }
+
+    // 2-1. 홈페이지용 요약 기사 목록 조회 (content 일부만 반환)
+    @Transactional(readOnly = true)
+    public java.util.List<ArticleHomeResponse> getHomeArticles(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        var pageable = PageRequest.of(0, safeLimit);
+
+        return articleRepository.findAllByOrderByIdDesc(pageable)
+                .stream()
+                .map(ArticleHomeResponse::from)
                 .toList();
     }
 
@@ -63,7 +76,21 @@ public class ArticleService {
     // 4. 기사 삭제
     @Transactional
     public void deleteArticle(Long id) {
-        articleRepository.deleteById(id);
+        Article article = articleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
+
+        // 연관된 이미지 URL을 먼저 스토리지에서 삭제
+        if (article.getImages() != null) {
+            article.getImages().forEach(img -> {
+                String url = img.getUrl();
+                if (url != null && !url.isBlank()) {
+                    imageService.deleteImageByUrl(url);
+                }
+            });
+        }
+
+        // JPA에서 Article 삭제 시, 연관 Image 엔티티는 orphanRemoval = true 로 자동 삭제
+        articleRepository.delete(article);
     }
 
     // 5. 기사 본문만 수정 (수정요청 메일 처리용)
@@ -80,18 +107,17 @@ public class ArticleService {
         Article article = articleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
 
-        article.updateBasic(
-                request.title(),
-                request.category(),
-                request.content(),
-                request.writer()
-        );
+        String title = request.title() != null ? request.title() : "";
+        String category = request.category() != null ? request.category() : "";
+        String content = request.content() != null ? request.content() : "";
+        String writer = request.writer() != null ? request.writer() : "";
+        article.updateBasic(title, category, content, writer);
 
-        // 이미지 목록 교체
         article.clearImages();
         if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
             for (String url : request.imageUrls()) {
-                String originalName = url.substring(url.lastIndexOf("/") + 1);
+                if (url == null || url.isBlank()) continue;
+                String originalName = url.contains("/") ? url.substring(url.lastIndexOf("/") + 1) : url;
                 Image image = new Image(url, originalName, article);
                 article.addImage(image);
             }

@@ -57,7 +57,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
             <input 
               type="text" 
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] transition-all"
-              placeholder="admin"
               value={id}
               onChange={(e) => setId(e.target.value)}
             />
@@ -67,7 +66,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
             <input 
               type="password" 
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] transition-all"
-              placeholder="••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

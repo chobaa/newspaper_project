@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { decodeHtmlEntities } from "../utils/text";
+import useArticles from "../hooks/useArticles";
 
 export default function NewsSlider() {
   const [activeTab, setActiveTab] = useState("많이 본 뉴스");
@@ -7,53 +9,73 @@ export default function NewsSlider() {
   const [popularArticles, setPopularArticles] = useState([]);
   const [latestArticles, setLatestArticles] = useState([]);
   const navigate = useNavigate();
+  const { data: articles } = useArticles({ mode: "home", limit: 80 });
 
-  // 백엔드에서 기사 목록을 불러와 인기/최신 기사로 분리
+  // 백엔드에서 받은 기사 목록을 인기/최신 기사로 분리
   useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        const res = await fetch("/api/articles");
-        if (!res.ok) {
-          return;
-        }
-        const data = await res.json();
-        // 본문 HTML에서 첫 번째 <img>를 찾은 기사만 사용
-        const mapped = data
-          .map((a) => {
-            const imgMatch = a.content
-              ? a.content.match(/<img[^>]+src="([^">]+)"/)
-              : null;
-            const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
-            return {
-              id: a.id,
-              title: a.title,
-              img: firstImage,
-              viewCount: a.viewCount || 0,
-              regDate: a.regDate,
-            };
-          })
-          .filter((a) => !!a.img); // 이미지가 있는 기사만 슬라이더에 노출
+    if (!articles) return;
+    try {
+      const data = articles;
+      const now = new Date();
+      const todayStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      );
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const popular = [...mapped]
-          .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
-          .slice(0, 5);
-        const latest = [...mapped]
-          .sort((a, b) => {
-            const da = a.regDate || "";
-            const db = b.regDate || "";
-            return db.localeCompare(da);
-          })
-          .slice(0, 5);
+      const parseDate = (regDate) => {
+        if (!regDate) return null;
+        const d = new Date(regDate);
+        if (Number.isNaN(d.getTime())) return null;
+        return d;
+      };
 
-        setPopularArticles(popular);
-        setLatestArticles(latest);
-        setCurrentIndex(0);
-      } catch (e) {
-        // ignore
-      }
-    };
-    fetchArticles();
-  }, []);
+      // 본문 HTML에서 첫 번째 <img>를 찾은 기사만 사용
+      const mapped = data
+        .map((a) => {
+          const imgMatch = a.content
+            ? a.content.match(/<img[^>]+src="([^">]+)"/)
+            : null;
+          const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
+          return {
+            id: a.id,
+            title: a.title,
+            img: firstImage,
+            viewCount: a.viewCount || 0,
+            regDate: a.regDate,
+          };
+        })
+        .filter((a) => !!a.img); // 이미지가 있는 기사만 슬라이더에 노출
+
+      // 최근 30일 기준 많이 본 뉴스
+      const last30Days = mapped.filter((a) => {
+        const d = parseDate(a.regDate);
+        return d && d >= thirtyDaysAgo;
+      });
+      const popularBase = last30Days.length > 0 ? last30Days : mapped;
+      const popular = [...popularBase]
+        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+        .slice(0, 5);
+
+      // 오늘 기준 실시간 급상승 (오늘 조회수 기준)
+      const todayList = mapped.filter((a) => {
+        const d = parseDate(a.regDate);
+        return d && d >= todayStart;
+      });
+      const realtimeBase = todayList.length > 0 ? todayList : popularBase;
+      const realtime = [...realtimeBase]
+        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+        .slice(0, 5);
+
+      setPopularArticles(popular);
+      setLatestArticles(realtime);
+      setCurrentIndex(0);
+    } catch (e) {
+      // ignore
+    }
+  }, [articles]);
 
   const slideData = {
     "많이 본 뉴스": popularArticles,
@@ -125,7 +147,7 @@ export default function NewsSlider() {
               className="font-bold text-lg leading-snug text-gray-800 cursor-pointer transition-colors hover:text-[var(--brand-600)]"
               onClick={() => goDetail(current)}
             >
-              {current.title}
+              {decodeHtmlEntities(current.title)}
             </h4>
           </>
         )}
@@ -147,7 +169,7 @@ export default function NewsSlider() {
               onClick={() => goDetail(item)}
               className="inline-block w-full"
             >
-              • {item.title}
+              • {decodeHtmlEntities(item.title)}
             </span>
           </div>
         ))}

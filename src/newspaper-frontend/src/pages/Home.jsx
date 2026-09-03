@@ -7,6 +7,8 @@ import LoginModal from "../components/LoginModal";
 import Footer from "../components/Footer";
 import AdminPanel from "../components/AdminPanel";
 
+export const SEARCH_TYPES = { TITLE: "title", CONTENT: "content", TITLE_AND_CONTENT: "titleAndContent" };
+
 export default function Home() {
   const location = useLocation();
   const [category, setCategory] = useState("전체");
@@ -16,6 +18,8 @@ export default function Home() {
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchType, setSearchType] = useState(SEARCH_TYPES.TITLE_AND_CONTENT);
 
   useEffect(() => {
     localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
@@ -53,6 +57,13 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state && location.state.category]);
 
+  // 검색창에서 엔터 시 검색 결과 화면으로 이동
+  const handleSearchSubmit = () => {
+    setCategory("검색결과");
+    setCategoryVersion((v) => v + 1);
+    setIsSearchOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative">
 
@@ -64,9 +75,13 @@ export default function Home() {
 
       <Header
         onSelectCategory={handleSelectCategory}
-        onLoginClick={handleLoginClick}
         isAdmin={isAdmin}
         onSearchChange={setSearch}
+        isSearchOpen={isSearchOpen}
+        onSearchOpenChange={setIsSearchOpen}
+        searchType={searchType}
+        onSearchTypeChange={setSearchType}
+        onSearchSubmit={handleSearchSubmit}
       />
 
       <main className="flex-grow max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-10 gap-8 w-full">
@@ -79,6 +94,7 @@ export default function Home() {
               categoryVersion={categoryVersion}
               isAdmin={isAdmin}
               search={search}
+              searchType={searchType}
             />
           )}
         </div>
@@ -87,7 +103,7 @@ export default function Home() {
         </div>
       </main>
 
-      <Footer />
+      <Footer onLoginClick={handleLoginClick} isAdmin={isAdmin} />
 
     </div>
   );

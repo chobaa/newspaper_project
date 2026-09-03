@@ -1,4 +1,4 @@
-# Newspaper 프로젝트 백업 스크립트 (Windows PowerShell)
+﻿# Newspaper 프로젝트 백업 스크립트 (Windows PowerShell)
 # MySQL 덤프 + MinIO 데이터 복사
 
 $ErrorActionPreference = "Stop"

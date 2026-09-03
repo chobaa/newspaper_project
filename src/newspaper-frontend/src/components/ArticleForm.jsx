@@ -35,8 +35,22 @@ try {
 
 export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   const [title, setTitle] = useState(initialArticle?.title || "");
-  const [category, setCategory] = useState(initialArticle?.category || "정치");
+  const [category, setCategory] = useState(initialArticle?.category || "성남시정");
   const [content, setContent] = useState(initialArticle?.content || "");
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [videoUrlInput, setVideoUrlInput] = useState("");
+
+  const categories = [
+    "성남시정",
+    "성남시의회",
+    "사회/복지",
+    "교육/문화",
+    "경기도정",
+    "경기도의회",
+    "인터뷰칼럼",
+    "동영상뉴스",
+  ];
 
   // 관리자 보기 설정 적용 (기본값: inherit, 1.125rem, 100%, 1.8)
   const display = getDisplaySettings();
@@ -47,28 +61,220 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   // 에디터 접근을 위한 Ref
   const quillRef = useRef(null);
 
+  const toEmbeddedVideo = (rawUrl) => {
+    const url = String(rawUrl || "").trim();
+    if (!url) return null;
+
+    // direct video (mp4/webm/ogg)
+    if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)) {
+      return { kind: "html", html: `<video controls src="${url}" style="width:100%;max-width:100%;border-radius:12px;"></video>` };
+    }
+
+    // YouTube: watch?v=, youtu.be, shorts
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\./, "");
+      if (host === "youtube.com" || host === "m.youtube.com") {
+        const v = u.searchParams.get("v");
+        if (v) return { kind: "quillVideo", url: `https://www.youtube.com/embed/${v}` };
+        const shortsMatch = u.pathname.match(/^\/shorts\/([^/]+)/);
+        if (shortsMatch?.[1]) return { kind: "quillVideo", url: `https://www.youtube.com/embed/${shortsMatch[1]}` };
+        const embedMatch = u.pathname.match(/^\/embed\/([^/]+)/);
+        if (embedMatch?.[1]) return { kind: "quillVideo", url };
+      }
+      if (host === "youtu.be") {
+        const id = u.pathname.replace("/", "").trim();
+        if (id) return { kind: "quillVideo", url: `https://www.youtube.com/embed/${id}` };
+      }
+
+      // Vimeo (basic)
+      if (host === "vimeo.com") {
+        const id = u.pathname.replace("/", "").trim();
+        if (id) return { kind: "quillVideo", url: `https://player.vimeo.com/video/${id}` };
+      }
+
+      // Default: try iframe (many providers allow embedding; some may block via X-Frame-Options)
+      return { kind: "quillVideo", url };
+    } catch (_) {
+      // Non-standard URL string: fallback to quill video
+      return { kind: "quillVideo", url };
+    }
+  };
+
+  const insertVideoUrl = (rawUrl) => {
+    const editor = quillRef.current?.getEditor?.() ?? quillRef.current;
+    if (!editor) return;
+    const embedded = toEmbeddedVideo(rawUrl);
+    if (!embedded) return;
+    const index = editor.getSelection?.(true)?.index ?? editor.getLength?.() ?? 0;
+
+    if (embedded.kind === "html") {
+      editor.clipboard?.dangerouslyPasteHTML?.(index, embedded.html, "user");
+      editor.insertText?.(index + 1, "\n", "user");
+      setContent(editor.root?.innerHTML ?? "");
+      return;
+    }
+
+    editor.insertEmbed(index, "video", embedded.url, "user");
+    editor.insertText?.(index + 1, "\n", "user");
+    setContent(editor.root?.innerHTML ?? "");
+  };
+
+  const openVideoModal = () => {
+    const editor = quillRef.current?.getEditor?.() ?? quillRef.current;
+    const selection = editor?.getSelection?.(true);
+    if (selection && typeof selection.length === "number" && selection.length > 0) {
+      // 텍스트 선택 상태면 "링크" 기능을 쓰는 경우가 많아서 기본 프롬프트 유지
+      const prev = editor.getFormat?.()?.link || "";
+      const raw = window.prompt("링크(URL)를 입력하세요.", prev || "https://");
+      if (!raw) return;
+      editor.format("link", String(raw).trim(), "user");
+      return;
+    }
+
+    setVideoUrlInput("");
+    setIsVideoModalOpen(true);
+  };
+
+  const closeVideoModal = () => {
+    setIsVideoModalOpen(false);
+    setVideoUrlInput("");
+  };
+
   // 이미지 선택 상태 및 크기 값 (디폴트값 설정을 위해 width, height 상태 관리)
   const [selectedImage, setSelectedImage] = useState(null);
   const [imgSize, setImgSize] = useState({ width: "", height: "" });
   const [keepRatio, setKeepRatio] = useState(true);
 
-  // 이미지 업로드 API 호출 헬퍼
+  // 업로드 전에 클라이언트에서 이미지 리사이즈/압축 (큰 원본은 2000px 이하로 축소)
+  const resizeImageIfNeeded = (file, maxWidth = 2000, maxHeight = 2000, quality = 0.8) => {
+    return new Promise((resolve) => {
+      if (!file || !file.type || !file.type.startsWith("image/")) {
+        resolve(file);
+        return;
+      }
+
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        if (!e.target?.result) {
+          resolve(file);
+          return;
+        }
+        img.onload = () => {
+          let { width, height } = img;
+          if (!width || !height) {
+            resolve(file);
+            return;
+          }
+
+          // 이미 충분히 작으면 그대로 사용
+          if (width <= maxWidth && height <= maxHeight) {
+            resolve(file);
+            return;
+          }
+
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          const targetWidth = Math.round(width * ratio);
+          const targetHeight = Math.round(height * ratio);
+
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          const mimeBase = file.type === "image/png" || file.type === "image/webp" ? file.type : "image/jpeg";
+          const mime = mimeBase || "image/jpeg";
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              const ext = mime.split("/")[1] || "jpg";
+              const name = file.name || `image.${ext}`;
+              const outFile = new File([blob], name, { type: mime });
+              resolve(outFile);
+            },
+            mime,
+            mime === "image/jpeg" || mime === "image/webp" ? quality : undefined
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = String(e.target.result);
+      };
+
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // 이미지 업로드 API 호출 헬퍼 (필요시 리사이즈 후 업로드)
   const uploadImageToServer = async (file) => {
+    if (!file || !file.size) {
+      throw new Error("파일이 비어 있습니다.");
+    }
+    // 원본이 너무 크면 브라우저에서 한 번 축소/압축
+    const processedFile = await resizeImageIfNeeded(file);
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", processedFile);
 
     const res = await fetch("/api/images", {
       method: "POST",
       body: formData,
     });
 
+    const text = await res.text();
     if (!res.ok) {
-      throw new Error("이미지 업로드에 실패했습니다.");
+      let msg = text;
+      try {
+        const json = JSON.parse(text);
+        msg = [json.error, json.detail].filter(Boolean).join(": ") || text;
+      } catch (_) {}
+      if (!msg) msg = `서버 오류 (${res.status})`;
+      throw new Error(`이미지 업로드 실패. ${msg} MinIO가 켜져 있는지 확인해 주세요.`);
     }
 
-    // 백엔드는 String 을 그대로 반환하므로 text 로 받는다
-    const url = await res.text();
-    return url.trim();
+    return text.trim();
+  };
+
+  /** 본문 HTML 내 data: URL 이미지를 서버 업로드 URL로 치환 (저장 전 호출) */
+  const convertDataUrlsToUploadedUrls = async (html) => {
+    if (!html || !html.includes('src="data:')) return html;
+    const dataUrlRegex = /src="(data:[^"]+)"/g;
+    const dataUrls = [];
+    let match;
+    while ((match = dataUrlRegex.exec(html)) !== null) {
+      if (!dataUrls.includes(match[1])) dataUrls.push(match[1]);
+    }
+    const urlMap = {};
+    for (const dataUrl of dataUrls) {
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const ext = (blob.type === "image/png") ? "png" : (blob.type === "image/gif") ? "gif" : "jpg";
+        const file = new File([blob], `image.${ext}`, { type: blob.type });
+        const url = await uploadImageToServer(file);
+        urlMap[dataUrl] = url;
+      } catch (err) {
+        console.error("data URL 이미지 업로드 실패:", err);
+        alert("이미지 업로드에 실패한 항목이 있어 저장이 중단됩니다. 이미지를 제거하거나 다시 첨부해 주세요.");
+        throw err;
+      }
+    }
+    let out = html;
+    for (const [dataUrl, url] of Object.entries(urlMap)) {
+      out = out.split(`src="${dataUrl}"`).join(`src="${url}"`);
+    }
+    return out;
   };
 
   const modules = useMemo(() => ({
@@ -92,7 +298,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
   useEffect(() => {
     if (initialArticle) {
       setTitle(initialArticle.title || "");
-      setCategory(initialArticle.category || "정치");
+      setCategory(initialArticle.category || "성남시정");
       setContent(initialArticle.content || "");
     }
   }, [initialArticle]);
@@ -146,13 +352,16 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     editor.clipboard.addMatcher(Node.ELEMENT_NODE, pasteMatcher);
   }, []);
 
-  // 이미지 업로드(툴바/드래그/붙여넣기) 커스터마이징
+  // 이미지 업로드(툴바 버튼 / 드래그 / 붙여넣기) — 에디터·툴바 준비 후 툴바 핸들러 등록
   useEffect(() => {
-    const quill = quillRef.current?.getEditor();
-    if (!quill) return;
+    let cancelled = false;
 
-    const toolbar = quill.getModule("toolbar");
-    if (toolbar) {
+    const registerHandlers = () => {
+      const editor = quillRef.current?.getEditor?.() ?? quillRef.current;
+      if (!editor?.getModule) return false;
+      const toolbar = editor.getModule("toolbar");
+      if (!toolbar || typeof toolbar.addHandler !== "function") return false;
+
       toolbar.addHandler("image", () => {
         const input = document.createElement("input");
         input.setAttribute("type", "file");
@@ -160,18 +369,44 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         input.click();
 
         input.onchange = async () => {
-          const file = input.files && input.files[0];
-          if (!file) return;
+          const file = input.files?.[0];
+          if (!file || !file.type.startsWith("image/")) return;
+          const q = quillRef.current?.getEditor?.() ?? quillRef.current;
+          if (!q) return;
           try {
-            const range = quill.getSelection(true);
+            const index = q.getSelection?.(true)?.index ?? q.getLength?.() ?? 0;
             const url = await uploadImageToServer(file);
-            quill.insertEmbed(range ? range.index : quill.getLength(), "image", url, "user");
+            if (cancelled) return;
+            q.insertEmbed(index, "image", url, "user");
           } catch (e) {
             console.error(e);
-            alert("이미지 업로드 중 오류가 발생했습니다.");
+            alert("이미지 업로드에 실패했습니다. 서버와 MinIO가 동작 중인지 확인해 주세요.");
           }
         };
       });
+
+      toolbar.addHandler("video", () => {
+        openVideoModal();
+      });
+
+      // 체인(링크) 아이콘: 텍스트 선택 시엔 하이퍼링크, 아니면 동영상 링크 삽입 모달
+      toolbar.addHandler("link", () => {
+        openVideoModal();
+      });
+      return true;
+    };
+
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      registerHandlers();
+    }, 200);
+
+    const quill = quillRef.current?.getEditor?.() ?? quillRef.current;
+    if (!quill) {
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
 
     const handleFiles = async (files, insertIndex) => {
@@ -245,6 +480,8 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     editorRoot.addEventListener("paste", handlePaste);
 
     return () => {
+      cancelled = true;
+      clearTimeout(timer);
       editorRoot.removeEventListener("drop", handleDrop);
       editorRoot.removeEventListener("paste", handlePaste);
     };
@@ -281,6 +518,33 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     };
   }, []); // 빈 배열: 컴포넌트가 처음 나타날 때 한 번만 실행
 
+  // 이미지 선택 시 Delete/Backspace로 이미지 제거
+  useEffect(() => {
+    if (!selectedImage) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = e.target?.tagName?.toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const editor = quillRef.current?.getEditor?.() ?? quillRef.current;
+      if (!editor) return;
+
+      const blot = Quill.find(selectedImage);
+      if (blot && typeof blot.remove === "function") {
+        e.preventDefault();
+        blot.remove();
+        editor.root.normalize(); // 빈 줄 등 정리
+        const html = editor.root.innerHTML;
+        setContent(html);
+        setSelectedImage(null);
+        setImgSize({ width: "", height: "" });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedImage]);
+
   // 입력창 값 변경 시 이미지 크기 실시간 적용
   const handleSizeChange = (e) => {
     const { name, value } = e.target;
@@ -316,7 +580,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const normalizeContentHtml = (html) => {
       if (!html) return "";
@@ -325,11 +589,17 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         .replace(/&nbsp;/g, " ");
     };
 
-    const cleanedContent = normalizeContentHtml(content);
+    let cleanedContent = normalizeContentHtml(content);
     const plainText = cleanedContent.replace(/<[^>]+>/g, '');
 
     if (!title || plainText.trim().length === 0) {
       alert("제목과 내용을 모두 입력해주세요.");
+      return;
+    }
+
+    try {
+      cleanedContent = await convertDataUrlsToUploadedUrls(cleanedContent);
+    } catch (err) {
       return;
     }
 
@@ -355,6 +625,33 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         return;
       }
     }
+
+    // 새 기사 작성 도중 취소하는 경우에만, 업로드된 이미지를 정리
+    if (!initialArticle?.id) {
+      try {
+        const regex = /<img[^>]+src="([^">]+)"/g;
+        const urls = [];
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+          const src = match[1];
+          if (src && !src.startsWith("data:") && !urls.includes(src)) {
+            urls.push(src);
+          }
+        }
+        if (urls.length > 0) {
+          // 실패해도 기사 취소 동작은 그대로 진행
+          fetch("/api/images/cleanup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls }),
+          }).catch(() => {});
+        }
+      } catch (e) {
+        // 정리 실패는 로그만 남기고 무시
+        console.error("이미지 정리 실패:", e);
+      }
+    }
+
     window.__articleDirty = false;
     onCancel();
   };
@@ -369,21 +666,50 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-1">
-            <label className="block text-sm font-bold text-gray-700 mb-2">카테고리</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              카테고리
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsCategoryOpen((prev) => !prev)}
+              className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-800 bg-white hover:bg-gray-50 transition"
             >
-              <option value="정치">정치</option>
-              <option value="경제">경제</option>
-              <option value="사회">사회</option>
-              <option value="문화">문화</option>
-              <option value="교육">교육</option>
-              <option value="인터뷰칼럼">인터뷰칼럼</option>
-              <option value="경기도소식">경기도소식</option>
-              <option value="동영상">동영상</option>
-            </select>
+              <span className="font-semibold">
+                {category || "카테고리를 선택하세요"}
+              </span>
+              <span className="text-xs text-gray-500">
+                {isCategoryOpen ? "접기 ▲" : "펼치기 ▼"}
+              </span>
+            </button>
+            {isCategoryOpen && (
+              <div className="mt-2 p-2 rounded-lg border border-gray-200 bg-gray-50 space-y-2 animate-[fadeIn_0.15s_ease-out]">
+                <p className="text-[11px] text-gray-500 mb-1">
+                  원하는 카테고리를 선택하세요.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((c) => {
+                    const isActive = c === category;
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setCategory(c);
+                          setIsCategoryOpen(false);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                          isActive
+                            ? "bg-[var(--brand-600)] border-[var(--brand-600)] text-white shadow-sm"
+                            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <div className="md:col-span-3">
             <label className="block text-sm font-bold text-gray-700 mb-2">기사 제목</label>
@@ -461,6 +787,91 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         </div>
       </form>
 
+      {/* 동영상 링크 삽입 모달 */}
+      {isVideoModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeVideoModal();
+          }}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="relative w-full max-w-xl bg-white rounded-2xl border border-gray-200 shadow-xl animate-[fadeIn_0.2s_ease-out]">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-lg font-black text-gray-900">동영상 링크 삽입</h3>
+                <button
+                  type="button"
+                  onClick={closeVideoModal}
+                  className="text-sm font-bold text-gray-500 hover:text-gray-800"
+                >
+                  닫기
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                유튜브/비메오 URL 또는 mp4 링크를 넣으면 기사에 플레이어가 노출됩니다.
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-gray-700">동영상 URL</label>
+                <input
+                  autoFocus
+                  type="url"
+                  value={videoUrlInput}
+                  onChange={(e) => setVideoUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") closeVideoModal();
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const url = String(videoUrlInput || "").trim();
+                      if (!url) return;
+                      insertVideoUrl(url);
+                      closeVideoModal();
+                    }
+                  }}
+                  placeholder="https://youtu.be/... 또는 https://.../video.mp4"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] font-semibold"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <div className="text-xs text-gray-500">
+                  팁: 유튜브 공유 링크도 자동으로 임베드 주소로 변환됩니다.
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeVideoModal}
+                    className="px-4 py-2 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = String(videoUrlInput || "").trim();
+                      if (!url) {
+                        alert("동영상 URL을 입력해 주세요.");
+                        return;
+                      }
+                      insertVideoUrl(url);
+                      closeVideoModal();
+                    }}
+                    className="px-5 py-2 rounded-xl font-bold text-white shadow-md transition bg-[var(--brand-900)] hover:bg-[var(--brand-800)]"
+                  >
+                    삽입하기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .ql-container { font-size: 11px; border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
         .ql-toolbar { border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; }
@@ -474,6 +885,26 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         .article-form-editor .ql-editor img {
           max-width: ${display.imageMaxWidth};
           height: auto;
+        }
+        .article-form-editor .ql-editor iframe,
+        .article-form-editor .ql-editor .ql-video {
+          width: 100%;
+          max-width: 100%;
+          aspect-ratio: 16 / 9;
+          height: auto;
+          border: 0;
+          border-radius: 12px;
+          display: block;
+          margin: 16px auto;
+          background: #000;
+        }
+        .article-form-editor .ql-editor video {
+          width: 100%;
+          max-width: 100%;
+          border-radius: 12px;
+          display: block;
+          margin: 16px auto;
+          background: #000;
         }
         ${fontSizeArr.map(size => `.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="${size}"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="${size}"]::before { content: '${size.replace('px', '')}'; }`).join('')}
         .ql-snow .ql-picker.ql-size .ql-picker-label::before { content: '11'; }
