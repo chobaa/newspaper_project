@@ -3,6 +3,10 @@
 작성일: 2026-09-10
 브랜치: `develop`
 
+> **참고:** 이 문서에 실측 예시로 등장하는 `/api/admin/agent-config` 는 작업 당시에는 존재했지만,
+> 이후 [AGENT_FEATURE_REMOVAL.md](AGENT_FEATURE_REMOVAL.md) 작업으로 삭제되었다.
+> 아래 측정값은 당시 기록 그대로 남겨 둔다.
+
 ---
 
 ## 1. 문제 상황
@@ -104,7 +108,7 @@ HMAC-SHA256 으로 서명한 만료형 토큰을 발급/검증한다. JWT 라이
 |------|------|
 | `OPTIONS` (preflight) | 통과 |
 | `POST /api/admin/login` | 통과 |
-| `/api/admin/**`, `/api/agent/**`, `/api/images**` | **메서드 무관 토큰 필요** |
+| `/api/admin/**`, `/api/images**` | **메서드 무관 토큰 필요** |
 | 그 외 `GET` / `HEAD` | 통과 (공개 조회) |
 | 그 외 (POST/PUT/DELETE 등) | **토큰 필요** |
 

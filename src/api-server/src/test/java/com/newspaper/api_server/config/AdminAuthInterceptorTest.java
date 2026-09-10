@@ -48,7 +48,7 @@ class AdminAuthInterceptorTest {
     void allowsLoginAndPreflight() throws Exception {
         assertThat(handle("POST", "/api/admin/login", null)).isTrue();
         assertThat(handle("OPTIONS", "/api/articles", null)).isTrue();
-        assertThat(handle("OPTIONS", "/api/admin/agent-config", null)).isTrue();
+        assertThat(handle("OPTIONS", "/api/admin/brand-settings", null)).isTrue();
     }
 
     // ===== 토큰이 필요한 것들 =====
@@ -63,23 +63,22 @@ class AdminAuthInterceptorTest {
     @Test
     void blocksAdminReadsWithoutToken() throws Exception {
         // 관리자 설정은 GET 이어도 공개되면 안 됩니다.
-        assertThat(handle("GET", "/api/admin/agent-config", null)).isFalse();
-        assertThat(handle("GET", "/api/admin/schedule-config", null)).isFalse();
-        assertThat(handle("GET", "/api/admin/mail-process-logs", null)).isFalse();
+        assertThat(handle("GET", "/api/admin/brand-assets", null)).isFalse();
+        assertThat(handle("GET", "/api/admin/anything", null)).isFalse();
+        assertThat(handle("PUT", "/api/admin/brand-settings", null)).isFalse();
     }
 
     @Test
-    void blocksImageAndAgentEndpointsWithoutToken() throws Exception {
+    void blocksImageEndpointsWithoutToken() throws Exception {
         assertThat(handle("POST", "/api/images", null)).isFalse();
         assertThat(handle("POST", "/api/images/cleanup", null)).isFalse();
-        assertThat(handle("POST", "/api/agent/fetch", null)).isFalse();
     }
 
     @Test
     void allowsProtectedEndpointsWithValidToken() throws Exception {
         assertThat(handle("POST", "/api/articles", "Bearer " + validToken)).isTrue();
         assertThat(handle("DELETE", "/api/articles/12", "Bearer " + validToken)).isTrue();
-        assertThat(handle("GET", "/api/admin/agent-config", "Bearer " + validToken)).isTrue();
+        assertThat(handle("PUT", "/api/admin/brand-settings", "Bearer " + validToken)).isTrue();
         assertThat(handle("POST", "/api/images", "Bearer " + validToken)).isTrue();
     }
 

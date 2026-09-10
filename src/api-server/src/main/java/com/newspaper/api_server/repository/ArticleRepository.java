@@ -28,6 +28,4 @@ public interface ArticleRepository extends JpaRepository<Article, Long>, JpaSpec
     // 사이드바 슬라이더 폴백: 전체 기간 조회수 상위
     List<Article> findAllByOrderByViewcountDesc(Pageable pageable);
 
-    // 제목이 포함된 기사 검색 (수정요청 매칭용)
-    java.util.Optional<Article> findFirstByTitleContainingOrderByIdDesc(String titlePart);
 }

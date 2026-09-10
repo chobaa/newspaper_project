@@ -102,13 +102,6 @@ public class ArticleService {
         articleRepository.delete(article);
     }
 
-    // 5. 기사 본문만 수정 (수정요청 메일 처리용)
-    @Transactional
-    public void updateContent(Long id, String newContent) {
-        Article article = articleRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
-        article.updateContent(newContent);
-    }
 
     // 7. 기사 전체 수정 (제목/카테고리/본문/기자/이미지 포함)
     @Transactional
@@ -131,11 +124,6 @@ public class ArticleService {
                 article.addImage(image);
             }
         }
-    }
-    // 6. 제목 포함 검색 (수정요청 매칭용)
-    @Transactional(readOnly = true)
-    public java.util.Optional<Article> findFirstByTitleContainingOrderByIdDesc(String titlePart) {
-        return articleRepository.findFirstByTitleContainingOrderByIdDesc(titlePart);
     }
 
     // =====================================================================

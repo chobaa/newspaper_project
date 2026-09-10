@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
  * <p>기준은 아래와 같습니다.</p>
  * <ul>
  *   <li>preflight(OPTIONS) 와 로그인 요청은 통과</li>
- *   <li>{@code /api/admin/**}, {@code /api/agent/**}, {@code /api/images/**} 는 메서드와 무관하게 토큰 필요
+ *   <li>{@code /api/admin/**}, {@code /api/images/**} 는 메서드와 무관하게 토큰 필요
  *       (관리자 설정 조회처럼 GET 이어도 공개되면 안 되는 것들이 있음)</li>
  *   <li>그 외 조회(GET/HEAD)는 공개</li>
  *   <li>나머지 쓰기 요청(POST/PUT/DELETE 등)은 토큰 필요</li>
@@ -33,7 +33,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String LOGIN_PATH = "/api/admin/login";
     private static final String[] ALWAYS_PROTECTED_PREFIXES = {
-            "/api/admin/", "/api/agent/", "/api/images"
+            "/api/admin/", "/api/images"
     };
 
     private final AdminTokenService adminTokenService;

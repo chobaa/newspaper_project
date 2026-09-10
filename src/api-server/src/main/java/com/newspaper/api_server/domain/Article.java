@@ -60,9 +60,6 @@ public class Article {
         this.viewcount++;
     }
 
-    public void updateContent(String newContent) {
-        this.content = newContent;
-    }
 
     public void updateBasic(String title, String category, String content, String writer) {
         this.title = title;

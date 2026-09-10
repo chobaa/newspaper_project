@@ -37,20 +37,6 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
 
-  mail:
-    host: ${MAIL_HOST:imap.naver.com}
-    port: ${MAIL_PORT:993}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        store:
-          protocol: imaps
-        imaps:
-          ssl:
-            enable: true
-            trust: "*"
-
   servlet:
     multipart:
       max-file-size: 50MB
@@ -68,12 +54,3 @@ cloud:
       static: ${MINIO_REGION:us-east-1}
     stack:
       auto: false
-
-gemini:
-  api-key: ${GEMINI_API_KEY:}
-  model: ${GEMINI_MODEL:gemini-2.0-flash}
-  enabled: ${GEMINI_ENABLED:true}
-
-logging:
-  level:
-    com.newspaper.api_server.service.GeminiService: DEBUG
