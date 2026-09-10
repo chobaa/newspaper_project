@@ -1,96 +1,52 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { decodeHtmlEntities } from "../utils/text";
-import useArticles from "../hooks/useArticles";
+import useApi from "../hooks/useApi";
+import { mapSummaries, sliderUrl } from "../api/articles";
+
+const SLIDE_COUNT = 5;
 
 export default function NewsSlider() {
   const [activeTab, setActiveTab] = useState("많이 본 뉴스");
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [popularArticles, setPopularArticles] = useState([]);
-  const [latestArticles, setLatestArticles] = useState([]);
+  const [rawIndex, setCurrentIndex] = useState(0);
   const navigate = useNavigate();
-  const { data: articles } = useArticles({ mode: "home", limit: 80 });
 
-  // 백엔드에서 받은 기사 목록을 인기/최신 기사로 분리
-  useEffect(() => {
-    if (!articles) return;
-    try {
-      const data = articles;
-      const now = new Date();
-      const todayStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate()
-      );
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // 많이 본 뉴스 / 실시간 급상승 계산은 서버에서 하고, 여기서는 5건씩만 받아옵니다.
+  const { data, loading } = useApi(sliderUrl(SLIDE_COUNT));
 
-      const parseDate = (regDate) => {
-        if (!regDate) return null;
-        const d = new Date(regDate);
-        if (Number.isNaN(d.getTime())) return null;
-        return d;
-      };
-
-      // 본문 HTML에서 첫 번째 <img>를 찾은 기사만 사용
-      const mapped = data
-        .map((a) => {
-          const imgMatch = a.content
-            ? a.content.match(/<img[^>]+src="([^">]+)"/)
-            : null;
-          const firstImage = imgMatch && imgMatch[1] ? imgMatch[1] : null;
-          return {
-            id: a.id,
-            title: a.title,
-            img: firstImage,
-            viewCount: a.viewCount || 0,
-            regDate: a.regDate,
-          };
-        })
-        .filter((a) => !!a.img); // 이미지가 있는 기사만 슬라이더에 노출
-
-      // 최근 30일 기준 많이 본 뉴스
-      const last30Days = mapped.filter((a) => {
-        const d = parseDate(a.regDate);
-        return d && d >= thirtyDaysAgo;
-      });
-      const popularBase = last30Days.length > 0 ? last30Days : mapped;
-      const popular = [...popularBase]
-        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
-        .slice(0, 5);
-
-      // 오늘 기준 실시간 급상승 (오늘 조회수 기준)
-      const todayList = mapped.filter((a) => {
-        const d = parseDate(a.regDate);
-        return d && d >= todayStart;
-      });
-      const realtimeBase = todayList.length > 0 ? todayList : popularBase;
-      const realtime = [...realtimeBase]
-        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
-        .slice(0, 5);
-
-      setPopularArticles(popular);
-      setLatestArticles(realtime);
-      setCurrentIndex(0);
-    } catch (e) {
-      // ignore
-    }
-  }, [articles]);
+  const popularArticles = useMemo(() => mapSummaries(data?.popular), [data]);
+  const realtimeArticles = useMemo(() => mapSummaries(data?.realtime), [data]);
 
   const slideData = {
     "많이 본 뉴스": popularArticles,
-    "실시간 급상승": latestArticles,
+    "실시간 급상승": realtimeArticles,
   };
 
   const currentArticles = slideData[activeTab] || [];
+  // 탭을 바꾸거나 목록이 갱신돼도 범위를 벗어나지 않도록 렌더 시점에 보정합니다.
+  const currentIndex = currentArticles.length > 0 ? rawIndex % currentArticles.length : 0;
 
   useEffect(() => {
-    if (!currentArticles.length) return;
+    if (!currentArticles.length) return undefined;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % currentArticles.length);
     }, 3000);
     return () => clearInterval(timer);
   }, [activeTab, currentArticles.length]);
+
+  if (loading) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-6 p-4" aria-busy="true">
+        <div className="h-48 rounded-xl bg-gray-200 animate-pulse mb-3" />
+        <div className="h-5 bg-gray-200 rounded animate-pulse w-4/5 mb-4" />
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-4 bg-gray-100 rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (!currentArticles.length) {
     return (

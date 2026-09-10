@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplaySettings } from '../utils/displaySettings';
 import { decodeHtmlEntities } from '../utils/text';
+import useApi, { clearApiCache } from '../hooks/useApi';
+import { articleUrl, mapSummaries, relatedArticlesUrl } from '../api/articles';
 
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
@@ -15,12 +17,16 @@ export default function ArticleDetail() {
   const display = getDisplaySettings();
   const isAdmin = typeof window !== "undefined" && localStorage.getItem("isAdmin") === "true";
 
-  // 목록에서 넘겨준 기사 데이터 받기 (없으면 서버에서 조회)
+  // 목록에서 넘겨준 기사 데이터 받기 (제목/카테고리 먼저 보여주고, 본문은 서버에서 조회)
   const [article, setArticle] = useState(location.state?.article || null);
-  const [loading, setLoading] = useState(!location.state?.article);
+  const [loading, setLoading] = useState(!location.state?.article?.content);
 
-  const [relatedNews, setRelatedNews] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+
+  // 추천 뉴스는 본문 조회를 기다리지 않고 동시에 요청합니다.
+  // (예전에는 전체 기사 목록을 본문까지 통째로 받아온 뒤 걸러냈습니다.)
+  const related = useApi(relatedArticlesUrl(id, 3));
+  const relatedNews = useMemo(() => mapSummaries(related.data), [related.data]);
 
   // 스크롤을 맨 위로 올리기 (페이지 이동 시)
   useEffect(() => {
@@ -32,7 +38,7 @@ export default function ArticleDetail() {
     const fetchArticle = async () => {
       if (!id) return;
       try {
-        const res = await fetch(`/api/articles/${id}`);
+        const res = await fetch(articleUrl(id));
         if (!res.ok) {
           setLoading(false);
           return;
@@ -56,40 +62,6 @@ export default function ArticleDetail() {
     };
     fetchArticle();
   }, [id]);
-
-  // 실제 기사 목록에서 동일 카테고리 추천 기사 불러오기
-  useEffect(() => {
-    const fetchRelated = async () => {
-      if (!article) return;
-      try {
-        const res = await fetch("/api/articles");
-        if (!res.ok) {
-          return;
-        }
-        const data = await res.json();
-        const sameCategory = data
-          .filter((a) => a.id !== article.id && a.category === article.category)
-          .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
-          .slice(0, 3)
-          .map((a) => {
-            const imgMatch = a.content
-              ? a.content.match(/<img[^>]+src="([^">]+)"/)
-              : null;
-            const firstImage = imgMatch && imgMatch[1] ? decodeHtmlEntities(imgMatch[1]) : null;
-            return {
-              id: a.id,
-              title: a.title,
-              date: a.regDate ? a.regDate.substring(0, 10) : "",
-              img: firstImage,
-            };
-          });
-        setRelatedNews(sameCategory);
-      } catch (e) {
-        // ignore
-      }
-    };
-    fetchRelated();
-  }, [article]);
 
   const normalizeContentHtml = (html) => {
     if (!html) return "";
@@ -178,7 +150,7 @@ export default function ArticleDetail() {
       const cleanedContent = normalizeContentHtml(updatedArticle.content);
       const imageUrls = extractImageUrlsFromContent(cleanedContent);
 
-      const res = await fetch(`/api/articles/${article.id}`, {
+      const res = await fetch(articleUrl(article.id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -204,6 +176,8 @@ export default function ArticleDetail() {
         author: updatedArticle.author,
       }));
 
+      // 목록/위젯 캐시를 비워서 뒤로 갔을 때 수정된 내용이 바로 보이도록 함
+      clearApiCache();
       setIsEditing(false);
       window.__articleDirty = false;
       alert("기사가 수정되었습니다.");
@@ -235,7 +209,8 @@ export default function ArticleDetail() {
   const handleDeleteArticle = async () => {
     if (!window.confirm("이 기사를 삭제하시겠습니까?")) return;
     try {
-      await fetch(`/api/articles/${article.id}`, { method: "DELETE" });
+      await fetch(articleUrl(article.id), { method: "DELETE" });
+      clearApiCache();
       alert("기사가 삭제되었습니다.");
       navigate(-1);
     } catch (e) {

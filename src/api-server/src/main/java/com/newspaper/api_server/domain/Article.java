@@ -8,6 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+// 카테고리별 최신순 조회(홈 위젯/카테고리 목록)가 가장 잦은 접근 패턴이라 복합 인덱스를 둡니다.
+@Table(name = "article", indexes = {
+        @Index(name = "idx_article_category_id", columnList = "category, id"),
+        @Index(name = "idx_article_reg_date", columnList = "reg_date")
+})
 @Getter
 @NoArgsConstructor
 public class Article {
