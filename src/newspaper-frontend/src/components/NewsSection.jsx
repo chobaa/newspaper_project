@@ -4,6 +4,7 @@ import Widget from "./Widget";
 import ArticleForm from "./ArticleForm";
 import { decodeHtmlEntities } from "../utils/text";
 import useApi, { clearApiCache } from "../hooks/useApi";
+import { authFetch, readErrorMessage } from "../api/http";
 import {
   articleSummariesUrl,
   articleUrl,
@@ -505,21 +506,9 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
     imageUrls: extractImageUrlsFromContent(article.content || ""),
   });
 
-  const readErrorMessage = async (res, fallback) => {
-    const text = await res.text();
-    try {
-      const json = JSON.parse(text);
-      if (json.error) return json.error;
-      if (json.detail) return `${fallback} ${json.detail}`;
-    } catch {
-      if (text) return `${fallback} ${text}`;
-    }
-    return fallback;
-  };
-
   const handleSaveArticle = async (newArticle) => {
     try {
-      const res = await fetch("/api/articles", {
+      const res = await authFetch("/api/articles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPayload(newArticle)),
@@ -534,7 +523,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
       alert("기사가 성공적으로 발행되었습니다!");
     } catch (e) {
       console.error(e);
-      alert("기사 저장 중 오류가 발생했습니다.");
+      alert(e.message || "기사 저장 중 오류가 발생했습니다.");
     }
   };
 
@@ -545,7 +534,7 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
       return;
     }
     try {
-      const res = await fetch(articleUrl(id), {
+      const res = await authFetch(articleUrl(id), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPayload(updatedArticle)),
@@ -569,9 +558,11 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
     if (!window.confirm("정말 이 기사를 삭제하시겠습니까?")) return;
 
     try {
-      await fetch(articleUrl(id), { method: "DELETE" });
+      const res = await authFetch(articleUrl(id), { method: "DELETE" });
+      if (!res.ok) throw new Error(await readErrorMessage(res, "기사 삭제에 실패했습니다."));
     } catch (err) {
       console.error(err);
+      alert(err.message || "기사 삭제 중 오류가 발생했습니다.");
     } finally {
       refreshArticles();
     }

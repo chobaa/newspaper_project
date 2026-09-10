@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplaySettings } from '../utils/displaySettings';
 import { decodeHtmlEntities } from '../utils/text';
 import useApi, { clearApiCache } from '../hooks/useApi';
+import { authFetch } from '../api/http';
+import { isAdmin as hasAdminToken } from '../api/auth';
 import { articleUrl, mapSummaries, relatedArticlesUrl } from '../api/articles';
 
 import Header from '../components/Header';
@@ -15,7 +17,8 @@ export default function ArticleDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const display = getDisplaySettings();
-  const isAdmin = typeof window !== "undefined" && localStorage.getItem("isAdmin") === "true";
+  // 관리자 UI 는 토큰이 있을 때만 노출합니다 (실제 권한은 서버가 검증)
+  const isAdmin = hasAdminToken();
 
   // 목록에서 넘겨준 기사 데이터 받기 (제목/카테고리 먼저 보여주고, 본문은 서버에서 조회)
   const [article, setArticle] = useState(location.state?.article || null);
@@ -150,7 +153,7 @@ export default function ArticleDetail() {
       const cleanedContent = normalizeContentHtml(updatedArticle.content);
       const imageUrls = extractImageUrlsFromContent(cleanedContent);
 
-      const res = await fetch(articleUrl(article.id), {
+      const res = await authFetch(articleUrl(article.id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -209,12 +212,13 @@ export default function ArticleDetail() {
   const handleDeleteArticle = async () => {
     if (!window.confirm("이 기사를 삭제하시겠습니까?")) return;
     try {
-      await fetch(articleUrl(article.id), { method: "DELETE" });
+      const res = await authFetch(articleUrl(article.id), { method: "DELETE" });
+      if (!res.ok) throw new Error("기사 삭제에 실패했습니다.");
       clearApiCache();
       alert("기사가 삭제되었습니다.");
       navigate(-1);
     } catch (e) {
-      alert("기사 삭제 중 오류가 발생했습니다.");
+      alert(e.message || "기사 삭제 중 오류가 발생했습니다.");
     }
   };
 

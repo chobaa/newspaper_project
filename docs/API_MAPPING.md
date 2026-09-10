@@ -47,6 +47,20 @@
 - Docker 사용 시 변경 사항 반영을 위해 `docker-compose up -d --build` 실행 필요.
 - 목록/위젯 API가 경량 요약 응답으로 바뀐 배경과 측정 결과는 [PERFORMANCE_LIST_LOADING.md](PERFORMANCE_LIST_LOADING.md) 참고.
 
+## 인증
+
+`POST /api/admin/login` 이 관리자 토큰을 발급하고, 이후 보호된 요청은
+`Authorization: Bearer <token>` 헤더를 요구한다. (쿠키/세션 미사용)
+
+| 구분 | 대상 | 토큰 |
+|------|------|------|
+| 공개 | `GET /api/articles/**`, `GET /api/public/images/**`, `GET /api/brand-settings/**`, `GET /api/health`, `POST /api/admin/login`, 모든 `OPTIONS` | 불필요 |
+| 보호 | `/api/admin/**`(로그인 제외), `/api/agent/**`, `/api/images**` — 메서드 무관 | **필요** |
+| 보호 | 그 외 모든 쓰기 요청 (`POST`/`PUT`/`DELETE`) | **필요** |
+
+프론트는 `src/api/http.js` 의 `authFetch()` 로 호출하며, 401 을 받으면 토큰을 지우고 자동 로그아웃한다.
+자세한 배경은 [SECURITY_ADMIN_AUTH.md](SECURITY_ADMIN_AUTH.md) 참고.
+
 ## Windows에서 검색 (PowerShell)
 
 ```powershell

@@ -4,7 +4,8 @@ import "react-quill-new/dist/quill.snow.css";
 
 import { getDisplaySettings } from "../utils/displaySettings";
 import { useBrandSettings } from "../context/BrandSettingsContext";
-import BlotFormatter from 'quill-blot-formatter';
+import BlotFormatter from "quill-blot-formatter";
+import { authFetch } from "../api/http";
 Quill.register('modules/blotFormatter', BlotFormatter);
 
 const Size = Quill.import("attributors/style/size");
@@ -227,7 +228,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     const formData = new FormData();
     formData.append("file", processedFile);
 
-    const res = await fetch("/api/images", {
+    const res = await authFetch("/api/images", {
       method: "POST",
       body: formData,
     });
@@ -640,7 +641,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         }
         if (urls.length > 0) {
           // 실패해도 기사 취소 동작은 그대로 진행
-          fetch("/api/images/cleanup", {
+          authFetch("/api/images/cleanup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ urls }),

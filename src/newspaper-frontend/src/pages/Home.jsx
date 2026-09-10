@@ -6,6 +6,7 @@ import Sidebar from "../components/Sidebar";
 import LoginModal from "../components/LoginModal";
 import Footer from "../components/Footer";
 import AdminPanel from "../components/AdminPanel";
+import { clearAdminToken, isAdmin as hasAdminToken, onAdminChange } from "../api/auth";
 
 export const SEARCH_TYPES = { TITLE: "title", CONTENT: "content", TITLE_AND_CONTENT: "titleAndContent" };
 
@@ -13,21 +14,25 @@ export default function Home() {
   const location = useLocation();
   const [category, setCategory] = useState("전체");
   const [categoryVersion, setCategoryVersion] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(() => {
-    return localStorage.getItem("isAdmin") === "true";
-  });
+  // 관리자 여부는 토큰 보유 여부로 판단합니다.
+  // (예전에는 localStorage 플래그만 봤기 때문에, 실제 권한 없이도 관리자 UI 가 켜졌습니다)
+  const [isAdmin, setIsAdmin] = useState(hasAdminToken);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchType, setSearchType] = useState(SEARCH_TYPES.TITLE_AND_CONTENT);
 
-  useEffect(() => {
-    localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
-  }, [isAdmin]);
+  // 토큰이 만료되어 자동 로그아웃되는 경우까지 화면에 반영합니다.
+  useEffect(() => onAdminChange(setIsAdmin), []);
 
   const handleLoginClick = () => {
     if (isAdmin) {
-      if (window.confirm("로그아웃 하시겠습니까?")) setIsAdmin(false);
+      if (window.confirm("로그아웃 하시겠습니까?")) {
+        clearAdminToken();
+        setIsAdmin(false);
+        setCategory("전체");
+        setCategoryVersion((v) => v + 1);
+      }
     } else {
       setIsLoginModalOpen(true);
     }

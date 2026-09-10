@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getBrandConfig } from "../config/brandConfig";
+import { authFetch } from "../api/http";
 
 const BrandSettingsContext = createContext(null);
 
@@ -50,7 +51,7 @@ export function BrandSettingsProvider({ children }) {
   const saveSettings = useCallback(
     async (newSettings) => {
       const payload = { brandId: brand.id, ...newSettings };
-      const res = await fetch("/api/admin/brand-settings", {
+      const res = await authFetch("/api/admin/brand-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

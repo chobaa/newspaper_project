@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getDisplaySettings, saveDisplaySettings } from "../utils/displaySettings";
 import { getBrandConfig } from "../config/brandConfig";
 import { useBrandSettings } from "../context/BrandSettingsContext";
+import { authFetch } from "../api/http";
 
 export default function AdminPanel() {
   const [config, setConfig] = useState({ allowedSenders: [], modificationKeywords: [] });
@@ -49,7 +50,7 @@ export default function AdminPanel() {
   const fetchConfig = async () => {
     try {
       setError(null);
-      const res = await fetch("/api/admin/agent-config");
+      const res = await authFetch("/api/admin/agent-config");
       if (!res.ok) throw new Error("설정을 불러오지 못했습니다.");
       const data = await res.json();
       setConfig({
@@ -65,7 +66,7 @@ export default function AdminPanel() {
 
   const fetchScheduleConfig = async () => {
     try {
-      const res = await fetch("/api/admin/schedule-config");
+      const res = await authFetch("/api/admin/schedule-config");
       if (res.ok) {
         const data = await res.json();
         setScheduleConfig(data);
@@ -81,7 +82,7 @@ export default function AdminPanel() {
 
   const saveScheduleConfig = async () => {
     try {
-      const res = await fetch("/api/admin/schedule-config", {
+      const res = await authFetch("/api/admin/schedule-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(scheduleForm),
@@ -106,7 +107,7 @@ export default function AdminPanel() {
   const fetchMailLogs = async () => {
     try {
       setMailLogsLoading(true);
-      const res = await fetch("/api/admin/mail-process-logs?limit=50");
+      const res = await authFetch("/api/admin/mail-process-logs?limit=50");
       if (res.ok) {
         const data = await res.json();
         setMailLogs(data);
@@ -121,7 +122,7 @@ export default function AdminPanel() {
   const clearMailLogs = async () => {
     if (!window.confirm("메일 처리 로그를 모두 지우시겠습니까?")) return;
     try {
-      await fetch("/api/admin/mail-process-logs", { method: "DELETE" });
+      await authFetch("/api/admin/mail-process-logs", { method: "DELETE" });
       setMailLogs([]);
     } catch (e) {
       alert("로그 삭제 실패: " + e.message);
@@ -131,7 +132,7 @@ export default function AdminPanel() {
   const runFetchNow = async () => {
     setFetching(true);
     try {
-      const res = await fetch("/api/agent/fetch", { method: "POST" });
+      const res = await authFetch("/api/agent/fetch", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       await fetchMailLogs();
       await fetchScheduleConfig();
@@ -149,7 +150,7 @@ export default function AdminPanel() {
     setSummaryLoading(prev => ({ ...prev, [logId]: true }));
     try {
       const imgWidth = encodeURIComponent(displayForm.imageMaxWidth || "400px");
-      const res = await fetch("/api/agent/ai-summary/" + logId + "?imageMaxWidth=" + imgWidth, { method: "POST" });
+      const res = await authFetch("/api/agent/ai-summary/" + logId + "?imageMaxWidth=" + imgWidth, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         alert("AI 기사 생성 완료!\n제목: " + (data.title || ""));
@@ -171,7 +172,7 @@ export default function AdminPanel() {
     }
     setCleanupRunning(true);
     try {
-      const res = await fetch("/api/admin/cleanup-orphan-images", {
+      const res = await authFetch("/api/admin/cleanup-orphan-images", {
         method: "POST",
       });
       if (!res.ok) {
@@ -289,7 +290,7 @@ export default function AdminPanel() {
       const renamed = new File([file], `${baseName}${ext || ".png"}`, { type: file.type || "image/png" });
 
       formData.append("file", renamed);
-      const res = await fetch("/api/admin/brand-assets", {
+      const res = await authFetch("/api/admin/brand-assets", {
         method: "POST",
         body: formData,
       });
@@ -319,7 +320,7 @@ export default function AdminPanel() {
       const renamed = new File([file], `${baseName}${ext || ".png"}`, { type: file.type || "image/png" });
       formData.append("file", renamed);
 
-      const res = await fetch("/api/admin/brand-assets", {
+      const res = await authFetch("/api/admin/brand-assets", {
         method: "POST",
         body: formData,
       });
@@ -387,7 +388,7 @@ export default function AdminPanel() {
 
       if (!window.confirm("이 배너 이미지를 삭제하시겠습니까?")) return;
 
-      await fetch("/api/admin/brand-assets?url=" + encodeURIComponent(url), {
+      await authFetch("/api/admin/brand-assets?url=" + encodeURIComponent(url), {
         method: "DELETE",
       }).catch(() => {});
 
@@ -420,7 +421,7 @@ export default function AdminPanel() {
     const email = senderInput.trim();
     if (!email) return;
     try {
-      const res = await fetch("/api/admin/agent-config/senders", {
+      const res = await authFetch("/api/admin/agent-config/senders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -436,7 +437,7 @@ export default function AdminPanel() {
   const removeSender = async (id) => {
     if (!window.confirm("삭제하시겠습니까?")) return;
     try {
-      await fetch("/api/admin/agent-config/senders/" + id, { method: "DELETE" });
+      await authFetch("/api/admin/agent-config/senders/" + id, { method: "DELETE" });
       await fetchConfig();
     } catch (e) {
       alert(e.message);
@@ -448,7 +449,7 @@ export default function AdminPanel() {
     const keyword = keywordInput.trim();
     if (!keyword) return;
     try {
-      const res = await fetch("/api/admin/agent-config/modification-keywords", {
+      const res = await authFetch("/api/admin/agent-config/modification-keywords", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword }),
@@ -464,7 +465,7 @@ export default function AdminPanel() {
   const removeKeyword = async (id) => {
     if (!window.confirm("삭제하시겠습니까?")) return;
     try {
-      await fetch("/api/admin/agent-config/modification-keywords/" + id, { method: "DELETE" });
+      await authFetch("/api/admin/agent-config/modification-keywords/" + id, { method: "DELETE" });
       await fetchConfig();
     } catch (e) {
       alert(e.message);

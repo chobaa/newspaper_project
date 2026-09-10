@@ -7,7 +7,9 @@ import com.newspaper.api_server.service.AgentLogService;
 import com.newspaper.api_server.service.BrandSettingsService;
 import com.newspaper.api_server.service.ImageService;
 import com.newspaper.api_server.service.ScheduleService;
+import com.newspaper.api_server.support.AdminTokenService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
 
@@ -34,18 +38,37 @@ public class AdminController {
     private final ScheduleService scheduleService;
     private final ImageService imageService;
     private final BrandSettingsService brandSettingsService;
+    private final AdminTokenService adminTokenService;
 
-    // ========== 관리자 로그인 (간단 하드코딩) ==========
+    @Value("${admin.username:admin}")
+    private String adminUsername;
 
+    @Value("${admin.password:8593}")
+    private String adminPassword;
+
+    // ========== 관리자 로그인 ==========
+
+    /**
+     * 로그인에 성공하면 관리자 토큰을 발급합니다.
+     * 이후 쓰기·관리자 API 는 {@code Authorization: Bearer <token>} 헤더를 요구합니다.
+     */
     @PostMapping("/api/admin/login")
     public Map<String, String> adminLogin(@RequestBody Map<String, String> body) {
         String id = body.get("id");
         String password = body.get("password");
 
-        if ("admin".equals(id) && "8593".equals(password)) {
-            return Map.of("result", "OK");
+        // 계정 정보는 환경변수(.env)로 관리합니다. equals 대신 상수 시간 비교를 사용합니다.
+        if (constantTimeEquals(adminUsername, id) && constantTimeEquals(adminPassword, password)) {
+            return Map.of("result", "OK", "token", adminTokenService.issue(adminUsername));
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
+    }
+
+    private static boolean constantTimeEquals(String expected, String actual) {
+        if (expected == null || actual == null) return false;
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8));
     }
 
     // ========== 에이전트 설정 ==========
