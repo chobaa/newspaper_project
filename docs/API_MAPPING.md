@@ -4,10 +4,16 @@
 
 | 메서드 | 경로 | 컨트롤러 | 용도 |
 |--------|------|----------|------|
-| GET | `/api/articles` | ArticleApiController | 기사 목록 조회 |
+| GET | `/api/articles` | ArticleApiController | 기사 목록 조회 (본문 포함, 하위 호환용 — 프론트 미사용) |
 | POST | `/api/articles` | ArticleApiController | 기사 저장 |
 | GET | `/api/articles/{id}` | ArticleApiController | 기사 상세 조회 |
+| PUT | `/api/articles/{id}` | ArticleApiController | 기사 수정 |
 | DELETE | `/api/articles/{id}` | ArticleApiController | 기사 삭제 |
+| GET | `/api/articles/home` | ArticleApiController | 홈용 요약 목록 (본문 8,000자 컷, 하위 호환용) |
+| GET | `/api/articles/home-sections` | ArticleApiController | 홈 헤드라인 + 카테고리별 위젯 기사 |
+| GET | `/api/articles/summary` | ArticleApiController | 카테고리 목록 / 검색 (서버 페이지네이션, 본문 제외) |
+| GET | `/api/articles/{id}/related` | ArticleApiController | 상세 페이지 추천뉴스 |
+| GET | `/api/articles/slider` | ArticleApiController | 사이드바 슬라이더 (많이 본 / 실시간 급상승) |
 | POST | `/api/images` | ImageApiController | 이미지 업로드 (MinIO) |
 | POST | `/api/agent/fetch` | AgentController | AI 에이전트 수동 실행 |
 | GET | `/api/admin/agent-config` | AgentConfigController | 에이전트 설정 조회 |
@@ -20,9 +26,15 @@
 
 | 컴포넌트 | 메서드 | 경로 | 용도 |
 |----------|--------|------|------|
-| NewsSection | GET | `/api/articles` | 기사 목록 로드 |
+| NewsSection | GET | `/api/articles/home-sections` | 홈 헤드라인 + 카테고리 위젯 |
+| NewsSection | GET | `/api/articles/summary` | 카테고리 목록 / 검색 결과 (페이지 단위) |
+| NewsSection | GET | `/api/articles/{id}` | 관리자 수정 시 본문 로드 |
 | NewsSection | POST | `/api/articles` | 기사 저장 |
+| NewsSection | PUT | `/api/articles/{id}` | 기사 수정 |
 | NewsSection | DELETE | `/api/articles/{id}` | 기사 삭제 |
+| ArticleDetail | GET | `/api/articles/{id}` | 기사 본문 조회 |
+| ArticleDetail | GET | `/api/articles/{id}/related` | 추천뉴스 (본문 조회와 병렬) |
+| NewsSlider | GET | `/api/articles/slider` | 사이드바 인기/급상승 |
 | AgentConfigPanel | GET | `/api/admin/agent-config` | 에이전트 설정 로드 |
 | AgentConfigPanel | POST | `/api/admin/agent-config/senders` | 보낸사람 추가 |
 | AgentConfigPanel | DELETE | `/api/admin/agent-config/senders/{id}` | 보낸사람 삭제 |
@@ -33,6 +45,7 @@
 
 - 위 매핑은 모두 일치함.
 - Docker 사용 시 변경 사항 반영을 위해 `docker-compose up -d --build` 실행 필요.
+- 목록/위젯 API가 경량 요약 응답으로 바뀐 배경과 측정 결과는 [PERFORMANCE_LIST_LOADING.md](PERFORMANCE_LIST_LOADING.md) 참고.
 
 ## Windows에서 검색 (PowerShell)
 

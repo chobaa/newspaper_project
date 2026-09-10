@@ -1,0 +1,22 @@
+# 도커 빌드 컨텍스트에서 제외할 것들
+# - node_modules 는 이미지 안에서 npm ci 로 새로 설치하므로 보낼 필요가 없습니다.
+#   (윈도우에서 설치된 심볼릭 링크가 섞여 있으면 빌드가 실패하기도 합니다)
+**/node_modules
+
+# 빌드 산출물
+src/newspaper-frontend/dist
+src/api-server/build
+src/api-server/out
+src/api-server/bin
+src/api-server/.gradle
+
+# 저장소 / 런타임 데이터
+.git
+.github
+.idea
+.vscode
+actions-runner
+data
+backups
+local_backups
+docs
