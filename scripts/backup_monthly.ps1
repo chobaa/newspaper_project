@@ -87,7 +87,7 @@ try {
     Write-Log "MySQL 컨테이너 확인: $MysqlContainer"
 
     # 이전 실행이 강제 종료되어 남은 미완성 아카이브 정리
-    $stale = Get-ChildItem -Path $ArchiveDir -Filter "*.zip.partial" -File -ErrorAction SilentlyContinue
+    $stale = Get-ChildItem -Path $ArchiveDir -Filter "*.partial" -File -ErrorAction SilentlyContinue
     foreach ($s in $stale) {
         Remove-Item -Path $s.FullName -Force
         Write-Log "미완성 아카이브 정리: $($s.Name)" "WARN"
@@ -117,22 +117,44 @@ try {
     # mysql 클라이언트가 경고를 stderr로 내보내므로, 2>&1 결과가 종료 오류로 승격되지 않게 잠시 완화
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    # 6>&1 : 검증 스크립트가 Write-Host로 찍는 상세 결과까지 로그 파일에 남기기 위함
-    $verifyOutput = & $verifyScript -ZipPath $zipPath 2>&1 6>&1
-    $verifyExit = $LASTEXITCODE
-    $ErrorActionPreference = $prevEap
-    foreach ($line in $verifyOutput) { Write-Log "  $line" }
 
-    if ($verifyExit -ne 0) {
-        # 검증 실패한 백업은 보관 대상에서 제외하기 위해 .INVALID 로 표시만 하고 남겨둔다.
+    # 검증 스크립트가 throw 하면 여기서 잡아야 한다.
+    # 예전에는 예외가 바깥 catch 로 곧장 빠져나가서 .INVALID 표시를 건너뛰었고,
+    # 그 결과 못 쓰는 아카이브가 멀쩡한 .zip 이름을 그대로 달고 보관됐다.
+    # (2026-09-01 실행분이 13.9MB 짜리로 남아 있던 이유)
+    $verifyFailReason = $null
+    try {
+        # 6>&1 : 검증 스크립트가 Write-Host로 찍는 상세 결과까지 로그 파일에 남기기 위함
+        $verifyOutput = & $verifyScript -ZipPath $zipPath -SkipMinio:$SkipMinio 2>&1 6>&1
+        $verifyExit = $LASTEXITCODE
+        foreach ($line in $verifyOutput) { Write-Log "  $line" }
+        if ($verifyExit -ne 0) { $verifyFailReason = "검증 스크립트 실패 (exit=$verifyExit)" }
+    }
+    catch {
+        $verifyFailReason = "검증 중 예외: $($_.Exception.Message)"
+    }
+    finally {
+        $ErrorActionPreference = $prevEap
+    }
+
+    if ($verifyFailReason) {
+        # 검증에 실패한 백업은 보관 대상에서 제외하기 위해 .INVALID 로 표시만 하고 남겨둔다.
         $invalidPath = "$zipPath.INVALID"
-        Rename-Item -Path $zipPath -NewName (Split-Path -Leaf $invalidPath) -Force
-        throw "백업 검증 실패 (exit=$verifyExit). 파일을 $invalidPath 로 표시했습니다. 로테이션은 건너뜁니다."
+        try {
+            Rename-Item -Path $zipPath -NewName (Split-Path -Leaf $invalidPath) -Force
+            Write-Log "검증 실패한 아카이브를 $invalidPath 로 표시했습니다." "WARN"
+        }
+        catch {
+            Write-Log "아카이브 이름 변경 실패: $($_.Exception.Message)" "WARN"
+        }
+        throw "백업 검증 실패 - $verifyFailReason. 로테이션은 건너뜁니다."
     }
     Write-Log "복원 검증 통과"
 
     # --- 4) 로테이션: 최신 N개만 남기고 오래된 백업 삭제 ---
-    $backups = Get-ChildItem -Path $ArchiveDir -Filter "newspaper_backup_*.zip" -File |
+    # .tar(현재) 와 .zip(예전 형식) 을 함께 센다. .INVALID 로 표시된 것은 제외된다.
+    $backups = Get-ChildItem -Path $ArchiveDir -File |
+        Where-Object { $_.Name -like "newspaper_backup_*.tar" -or $_.Name -like "newspaper_backup_*.zip" } |
         Sort-Object LastWriteTime -Descending
 
     Write-Log "현재 보관 중인 백업: $($backups.Count) 개"
@@ -153,7 +175,8 @@ try {
         $logs | Select-Object -Skip ($KeepCount * 2) | Remove-Item -Force
     }
 
-    $remaining = Get-ChildItem -Path $ArchiveDir -Filter "newspaper_backup_*.zip" -File
+    $remaining = Get-ChildItem -Path $ArchiveDir -File |
+        Where-Object { $_.Name -like "newspaper_backup_*.tar" -or $_.Name -like "newspaper_backup_*.zip" }
     $totalGB = [math]::Round((($remaining | Measure-Object -Property Length -Sum).Sum) / 1GB, 2)
     Write-Log "===== 월간 백업 성공 ===== (보관 $($remaining.Count) 개 / 합계 $totalGB GB)"
 }
