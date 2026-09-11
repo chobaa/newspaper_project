@@ -273,7 +273,107 @@ export async function authFetch(url, options = {}) { ... }
    (`actions-runner/_work/newspaper_project/newspaper_project/`)은 2026-01 이후 갱신되지 않았고
    `.env` 도 없다. 현재 실제 배포는 로컬 디렉터리에서 수동으로 이뤄지는 것으로 보인다.
 
-## 7. 남은 과제
+## 7. 후속 수정 (2026-09-11) — 토큰 만료 처리
+
+인증을 넣은 다음 날 "기사 작성에서 사진이 안 올라간다. 서버와 MinIO 확인하라고 나온다" 는 제보가 왔다.
+
+### 확인한 것
+
+서버·MinIO 모두 정상이었고, 업로드 API 도 정상이었다.
+
+```
+POST /api/images  (토큰 있음)  -> 200, /api/public/images/...
+POST /api/images  (토큰 없음)  -> 401
+```
+
+nginx 접근 로그를 보니 사용자 브라우저가 01:37~02:33 동안 `POST /api/images` 에 대해
+**401 을 반복해서 받고 있었고, 그 구간에 로그인 요청이 없었다.**
+전날 13:06 에 받아간 번들은 최신이었으므로 캐시 문제도 아니었다.
+→ **토큰(TTL 12시간)이 만료된 상태**였다.
+
+### 문제 1 — 만료된 토큰을 "로그인 상태" 로 봤다
+
+`getAdminToken()` 이 **토큰의 존재 여부만** 확인했다.
+만료된 토큰이 `localStorage` 에 남아 있으면
+
+- 관리자 UI 는 그대로 열리고
+- 저장·업로드만 401 로 실패한다
+
+사용자 입장에서는 "로그인은 되어 있는데 사진만 안 올라가는" 상태로 보인다.
+
+**수정:** `auth.js` 가 토큰 페이로드의 만료시각을 읽어, 지났으면 없는 것으로 처리하고
+저장소에서도 지운다. 서명은 서버만 검증할 수 있으므로 여기서는 만료 여부만 본다.
+(렌더 중에 호출될 수 있어 상태 변경 알림은 다음 틱으로 미룬다)
+
+### 문제 2 — 401 을 서버 장애로 안내했다
+
+`ArticleForm.jsx` 의 catch 가 실제 오류를 버리고 고정 문구를 띄웠다.
+
+```js
+alert("이미지 업로드에 실패했습니다. 서버와 MinIO가 동작 중인지 확인해 주세요.");
+```
+
+인증 만료(401)든 뭐든 전부 "서버와 MinIO 확인" 으로 나와서 엉뚱한 곳을 보게 만들었다.
+
+**수정:** `describeUploadError()` 를 두어 401 은 "관리자 로그인이 만료되었습니다. 다시 로그인해 주세요",
+나머지는 실제 오류 메시지를 그대로 보여준다.
+
+### 문제 3 — 만료되면 작성 중인 기사가 날아갔다
+
+`NewsSection` 에 `if (!isAdmin) setIsWriting(false)` 가 있어서,
+토큰이 만료되어 관리자 상태가 풀리는 순간 편집기가 닫히고 쓰던 기사가 사라졌다.
+
+**수정:** 미저장 내용(`window.__articleDirty`)이 있으면 편집기를 닫지 않는다.
+다시 로그인한 뒤 저장하면 된다.
+
+### 문제 4 — 배포해도 사용자에게 도달하지 않는다
+
+고친 번들을 배포했는데도 브라우저가 **옛 번들을 계속 불러왔다.**
+nginx 에 캐시 헤더가 전혀 없어서 브라우저가 `index.html` 을 임의로 캐싱하고 있었다.
+번들 파일명에는 해시가 붙는데, 그 파일명을 가리키는 `index.html` 이 낡으면 새 번들을 받을 길이 없다.
+
+**수정:** `deployment/nginx/nginx.conf` 의 SPA 서빙 블록 3곳에
+
+```nginx
+location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+}
+location = /index.html {
+    add_header Cache-Control "no-cache, must-revalidate";
+}
+```
+
+확인:
+
+```
+index.html   Cache-Control: no-cache, must-revalidate
+assets/*.js  Cache-Control: public, max-age=31536000, immutable
+```
+
+> 이미 옛 `index.html` 을 캐시에 들고 있는 브라우저는 **한 번은 강력 새로고침(Ctrl+F5)** 이 필요하다.
+> 그 뒤로는 항상 최신 번들을 받는다.
+
+### 검증
+
+새 번들 기준:
+
+| 상황 | 결과 |
+|------|------|
+| 만료 토큰을 심어두고 홈 진입 | 토큰 자동 삭제, 관리자 메뉴 숨김, 푸터가 "관리자 로그인" 으로 표시 |
+| 로그인 | 200, 만료까지 12.0시간 |
+| 로그인 후 이미지 업로드 | 200, `/api/public/images/...` 반환 |
+
+프론트 테스트 31개 통과 (`auth.expiry.test.js` 4개 추가).
+
+### 참고
+
+- 토큰 유효기간은 `.env` 의 `ADMIN_TOKEN_TTL_HOURS` 로 조절한다(기본 12).
+  매일 다시 로그인하는 게 번거로우면 늘릴 수 있지만, 그만큼 토큰이 탈취됐을 때의 유효 시간도 길어진다.
+
+---
+
+## 8. 남은 과제
 
 - 토큰이 `localStorage` 에 저장되므로 XSS 가 발생하면 탈취될 수 있다.
   본문은 관리자만 작성하지만, 상세 페이지가 `dangerouslySetInnerHTML` 로 HTML 을 렌더하므로

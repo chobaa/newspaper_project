@@ -247,6 +247,16 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
     return text.trim();
   };
 
+  // 실패 원인을 그대로 보여준다.
+  // 예전에는 어떤 오류든 "서버와 MinIO가 동작 중인지 확인해 주세요" 로 덮어써서,
+  // 관리자 토큰이 만료된 401 까지 서버 장애처럼 보였다.
+  const describeUploadError = (err) => {
+    if (err?.status === 401 || err?.name === "UnauthorizedError") {
+      return "관리자 로그인이 만료되었습니다.\n다시 로그인한 뒤 이미지를 첨부해 주세요.\n(작성 중인 내용은 그대로 유지됩니다)";
+    }
+    return `이미지 업로드에 실패했습니다.\n${err?.message || "알 수 없는 오류"}`;
+  };
+
   /** 본문 HTML 내 data: URL 이미지를 서버 업로드 URL로 치환 (저장 전 호출) */
   const convertDataUrlsToUploadedUrls = async (html) => {
     if (!html || !html.includes('src="data:')) return html;
@@ -267,7 +277,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
         urlMap[dataUrl] = url;
       } catch (err) {
         console.error("data URL 이미지 업로드 실패:", err);
-        alert("이미지 업로드에 실패한 항목이 있어 저장이 중단됩니다. 이미지를 제거하거나 다시 첨부해 주세요.");
+        alert(describeUploadError(err) + "\n\n저장을 중단했습니다. 작성 중인 내용은 그대로 있습니다.");
         throw err;
       }
     }
@@ -381,7 +391,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
             q.insertEmbed(index, "image", url, "user");
           } catch (e) {
             console.error(e);
-            alert("이미지 업로드에 실패했습니다. 서버와 MinIO가 동작 중인지 확인해 주세요.");
+            alert(describeUploadError(e));
           }
         };
       });
@@ -425,7 +435,7 @@ export default function ArticleForm({ onSave, onCancel, initialArticle }) {
           index += 1;
         } catch (e) {
           console.error(e);
-          alert("이미지 업로드 중 오류가 발생했습니다.");
+          alert(describeUploadError(e));
           break;
         }
       }

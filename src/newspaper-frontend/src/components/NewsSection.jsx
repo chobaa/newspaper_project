@@ -457,7 +457,10 @@ export default function NewsSection({ category, categoryVersion, isAdmin, search
   const totalPages = Math.max(1, list.data?.totalPages ?? 1);
 
   useEffect(() => {
-    if (!isAdmin) setIsWriting(false);
+    // 토큰이 만료되면 관리자 상태가 자동으로 풀린다. 이때 작성 중인 글까지 닫아버리면
+    // 쓰던 기사가 통째로 날아가므로, 미저장 내용이 있으면 편집기를 유지한다.
+    // (다시 로그인한 뒤 저장하면 된다)
+    if (!isAdmin && !window.__articleDirty) setIsWriting(false);
   }, [isAdmin]);
 
   // 상단 카테고리 변경 또는 동일 카테고리 재클릭 시: 작성 모드 종료 + 1페이지로 이동
