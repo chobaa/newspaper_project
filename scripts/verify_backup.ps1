@@ -6,7 +6,9 @@
 # 아카이브가 수 GB일 수 있으므로 Expand-Archive(전체 메모리 적재) 대신
 # bsdtar로 필요한 항목 하나만 꺼낸다.
 param(
-    [string]$ZipPath
+    [string]$ZipPath,
+    # DB만 백업한 경우(-SkipMinio)에는 MinIO 항목이 없는 게 정상이다.
+    [switch]$SkipMinio
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,10 +16,11 @@ $MysqlContainer = if ($env:MYSQL_CONTAINER) { $env:MYSQL_CONTAINER } else { "new
 
 if (-not $ZipPath) {
     $DesktopPath = [Environment]::GetFolderPath("Desktop")
-    $latest = Get-ChildItem -Path $DesktopPath -Filter "newspaper_backup_*.zip" |
+    $latest = Get-ChildItem -Path $DesktopPath -File |
+        Where-Object { $_.Name -like "newspaper_backup_*.tar" -or $_.Name -like "newspaper_backup_*.zip" } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
-    if (-not $latest) { throw "Desktop에 newspaper_backup_*.zip 파일이 없습니다." }
+    if (-not $latest) { throw "Desktop에 newspaper_backup_* 아카이브가 없습니다." }
     $ZipPath = $latest.FullName
 }
 
@@ -72,12 +75,25 @@ try {
     Write-Host "원본 article 행 수: $origArticle"
     Write-Host "복원 article 행 수: $restArticle"
 
-    if ($restoreExit -eq 0 -and [int]$origArticle -eq [int]$restArticle -and [int]$restArticle -gt 0) {
+    $dbOk = ($restoreExit -eq 0) -and ([int]$origArticle -eq [int]$restArticle) -and ([int]$restArticle -gt 0)
+
+    # 예전에는 MinIO 항목 수를 출력만 하고 판정에 쓰지 않았다.
+    # 그래서 이미지가 하나도 안 담긴 백업(2026-08-26 20:18 실행분)이 "OK"로 통과했다.
+    $minioOk = $true
+    if (-not $SkipMinio) {
+        $minioOk = ($minioEntryCount -gt 0)
+        if (-not $minioOk) {
+            Write-Host "MinIO 항목이 하나도 없습니다. 이미지가 빠진 백업입니다."
+        }
+    }
+
+    if ($dbOk -and $minioOk) {
         Write-Host "결과: OK (데이터 복원 가능)"
         exit 0
     }
 
-    Write-Host "결과: FAIL (데이터 복원 불완전)"
+    if (-not $dbOk) { Write-Host "결과: FAIL (데이터 복원 불완전)" }
+    else { Write-Host "결과: FAIL (MinIO 데이터 누락)" }
     exit 1
 }
 finally {

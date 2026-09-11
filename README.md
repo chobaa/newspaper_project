@@ -108,22 +108,31 @@ Spring Boot 기반 API 서버와 React(Vite) 프론트엔드로 구성되어 있
   - 최대 3개의 추천 항목을 세로로 배치
   - 각 항목 클릭 시 상단 카드/상세 페이지가 해당 기사로 전환
 
-### 7. 관리자 패널 (Agent/스케줄/로그/배너)
+### 7. 관리자 패널 (표시 설정/배너)
 
-- 기존 프로젝트의 에이전트 설정/스케줄/로그 관리 UI를 그대로 유지하면서,
-  - 기사 표시 설정
+- 관리자 로그인 후 이용할 수 있으며, 제공 기능은 다음과 같습니다.
+  - 기사 표시 설정 (글꼴/글씨 크기/이미지 최대 너비/줄간격)
   - 브랜드/배너 설정
-  를 추가로 제공
+  - 고아 이미지 정리
 - 백엔드 `AdminController`를 통해:
-  - 허용 발신자/수정 키워드 관리
-  - 스케줄 설정/로그 조회 및 초기화
+  - 관리자 로그인 및 토큰 발급
   - MinIO 기반 브랜드 자산(배너/로고 이미지) 업로드/삭제
+  - 브랜드 설정 저장
+
+> 메일 수집 에이전트(발신자/키워드/스케줄/로그, Gemini 요약, HWP 파싱)는 제거되었습니다.
+> 자세한 내용은 [docs/AGENT_FEATURE_REMOVAL.md](docs/AGENT_FEATURE_REMOVAL.md) 참고.
+
+### 8. 관리자 인증
+
+- 로그인 성공 시 `Authorization: Bearer <token>` 으로 쓰는 관리자 토큰을 발급합니다.
+- 쓰기 요청과 `/api/admin/**`, `/api/images**` 는 토큰이 없으면 `401` 입니다.
+- 자세한 내용은 [docs/SECURITY_ADMIN_AUTH.md](docs/SECURITY_ADMIN_AUTH.md) 참고.
 
 ---
 
 ## 개발/실행 방법 (요약)
 
-> 포트, DB, MinIO, 메일 등은 `.env`와 `src/newspaper-frontend/.env.*`에서 설정합니다.  
+> 포트, DB, MinIO, 관리자 계정 등은 `.env`와 `src/newspaper-frontend/.env.*`에서 설정합니다.  
 > 배포 시 `.env.example`을 복사해 `.env`를 만든 뒤 값을 채우세요. (비밀번호·API 키 등은 저장소에 올리지 마세요.)
 
 1. **백엔드**
@@ -146,9 +155,9 @@ docker compose up -d
 |-----------|------|
 | `http://<서버>:80` | Primary 사이트 (NEWSPAPER) |
 | `http://<서버>:8081` | Secondary 사이트 (DAILY FOCUS) |
-| `http://<서버>:8080` | API 직접 (Nginx 사용 시 `/api`로 프록시됨) |
+| `http://<서버>/api/...` | API (Nginx 프록시. 백엔드 8080은 호스트에 노출하지 않음) |
 
-- **환경 변수**: `.env.example`을 복사해 `.env` 생성 후, DB/MinIO/메일/Gemini/CORS 등 **실제 값으로만** 채우세요. `.env`는 Git에 커밋하지 마세요.
+- **환경 변수**: `.env.example`을 복사해 `.env` 생성 후, DB/MinIO/CORS/관리자 계정(`ADMIN_PASSWORD`, `ADMIN_TOKEN_SECRET`) 등 **실제 값으로만** 채우세요. `.env`는 Git에 커밋하지 마세요.
 - **CORS**: 실제 도메인·IP로 접속할 경우 `.env`에 `CORS_ALLOWED_ORIGINS`를 해당 Origin 목록(쉼표 구분)으로 설정한 뒤 백엔드 컨테이너를 재시작하세요.
 - **백업**: `scripts/backup.sh` (Linux/Mac), `scripts/backup.ps1` (Windows). 정기 실행 권장.
 

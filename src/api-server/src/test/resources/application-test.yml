@@ -16,12 +16,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
 
-  mail:
-    host: localhost
-    port: 1025
-    username: test
-    password: test
-
 cloud:
   aws:
     credentials:
@@ -32,6 +26,3 @@ cloud:
       bucket: test-bucket
     region:
       static: us-east-1
-
-gemini:
-  enabled: false

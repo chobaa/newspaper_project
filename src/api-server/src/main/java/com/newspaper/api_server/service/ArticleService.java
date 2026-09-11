@@ -10,6 +10,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
+import com.newspaper.api_server.dto.ArticlePageResponse;
+import com.newspaper.api_server.dto.ArticleSliderResponse;
+import com.newspaper.api_server.dto.ArticleSummaryResponse;
+import com.newspaper.api_server.dto.HomeSectionsResponse;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -93,13 +102,6 @@ public class ArticleService {
         articleRepository.delete(article);
     }
 
-    // 5. 기사 본문만 수정 (수정요청 메일 처리용)
-    @Transactional
-    public void updateContent(Long id, String newContent) {
-        Article article = articleRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("기사가 없습니다. id=" + id));
-        article.updateContent(newContent);
-    }
 
     // 7. 기사 전체 수정 (제목/카테고리/본문/기자/이미지 포함)
     @Transactional
@@ -123,9 +125,130 @@ public class ArticleService {
             }
         }
     }
-    // 6. 제목 포함 검색 (수정요청 매칭용)
+
+    // =====================================================================
+    // 목록/위젯용 경량 조회
+    // 본문 전체를 내려보내면 목록 한 번에 수 MB가 오가므로,
+    // 아래 메서드들은 요약문 + 썸네일만 담은 DTO를 반환합니다.
+    // =====================================================================
+
+    /** 홈 화면: 헤드라인 + 카테고리별 위젯 기사를 한 번에 조회 */
     @Transactional(readOnly = true)
-    public java.util.Optional<Article> findFirstByTitleContainingOrderByIdDesc(String titlePart) {
-        return articleRepository.findFirstByTitleContainingOrderByIdDesc(titlePart);
+    public HomeSectionsResponse getHomeSections(List<String> categories, int perCategory, int headlineCount) {
+        int safePerCategory = clamp(perCategory, 1, 10);
+        int safeHeadlineCount = clamp(headlineCount, 1, 10);
+
+        List<ArticleSummaryResponse> headlines = toSummaries(
+                articleRepository.findAllByOrderByIdDesc(PageRequest.of(0, safeHeadlineCount)));
+
+        List<HomeSectionsResponse.CategorySection> sections = new ArrayList<>();
+        if (categories != null) {
+            for (String category : categories) {
+                if (category == null || category.isBlank()) continue;
+                // 카테고리마다 따로 조회하므로, 최신 기사 쏠림과 무관하게 항상 N건이 채워집니다.
+                List<ArticleSummaryResponse> articles = toSummaries(
+                        articleRepository.findByCategoryOrderByIdDesc(category, PageRequest.of(0, safePerCategory)));
+                sections.add(new HomeSectionsResponse.CategorySection(category, articles));
+            }
+        }
+
+        return new HomeSectionsResponse(headlines, sections);
+    }
+
+    /** 카테고리 목록 / 검색 결과: 서버에서 페이지 단위로 잘라서 반환 */
+    @Transactional(readOnly = true)
+    public ArticlePageResponse getArticleSummaries(String category, String keyword, String searchType,
+                                                   int page, int size) {
+        int safePage = Math.max(1, page);
+        int safeSize = clamp(size, 1, 50);
+
+        Specification<Article> spec = buildSearchSpec(category, keyword, searchType);
+        var pageable = PageRequest.of(safePage - 1, safeSize,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
+        var result = articleRepository.findAll(spec, pageable);
+
+        return ArticlePageResponse.of(toSummaries(result.getContent()), result.getTotalElements(), safePage, safeSize);
+    }
+
+    /** 상세 페이지 추천 뉴스: 같은 카테고리의 최신 기사 */
+    @Transactional(readOnly = true)
+    public List<ArticleSummaryResponse> getRelatedArticles(Long id, int limit) {
+        int safeLimit = clamp(limit, 1, 10);
+        Article article = articleRepository.findById(id).orElse(null);
+        if (article == null) return List.of();
+
+        String category = article.getCategory();
+        if (category == null || category.isBlank()) return List.of();
+
+        return toSummaries(
+                articleRepository.findByCategoryAndIdNotOrderByIdDesc(category, id, PageRequest.of(0, safeLimit)));
+    }
+
+    /** 사이드바 슬라이더: 많이 본 뉴스 / 실시간 급상승 (썸네일 이미지가 있는 기사만) */
+    @Transactional(readOnly = true)
+    public ArticleSliderResponse getSliderArticles(int limit) {
+        int safeLimit = clamp(limit, 1, 20);
+        // 이미지 없는 기사를 걸러내야 하므로 넉넉히 뽑아온 뒤 잘라냅니다.
+        int poolSize = safeLimit * 10;
+        var pool = PageRequest.of(0, poolSize);
+
+        LocalDateTime now = LocalDateTime.now();
+        List<ArticleSummaryResponse> lastMonth = withImage(
+                articleRepository.findByRegDateGreaterThanEqualOrderByViewcountDesc(now.minusDays(30), pool));
+        List<ArticleSummaryResponse> base = lastMonth.isEmpty()
+                ? withImage(articleRepository.findAllByOrderByViewcountDesc(pool))
+                : lastMonth;
+
+        List<ArticleSummaryResponse> today = withImage(
+                articleRepository.findByRegDateGreaterThanEqualOrderByViewcountDesc(
+                        now.toLocalDate().atStartOfDay(), pool));
+
+        return new ArticleSliderResponse(
+                base.stream().limit(safeLimit).toList(),
+                (today.isEmpty() ? base : today).stream().limit(safeLimit).toList());
+    }
+
+    private Specification<Article> buildSearchSpec(String category, String keyword, String searchType) {
+        String trimmedKeyword = keyword == null ? "" : keyword.trim();
+        String pattern = "%" + trimmedKeyword + "%";
+        String lowerPattern = "%" + trimmedKeyword.toLowerCase() + "%";
+        boolean searchTitle = !"content".equals(searchType);
+        boolean searchContent = !"title".equals(searchType);
+
+        return (root, query, cb) -> {
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            if (category != null && !category.isBlank()) {
+                predicates.add(cb.equal(root.get("category"), category));
+            }
+            if (!trimmedKeyword.isEmpty()) {
+                var keywordPredicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+                if (searchTitle) keywordPredicates.add(cb.like(cb.lower(root.get("title")), lowerPattern));
+                // content 는 @Lob(LONGTEXT) 이라 lower() 를 걸 수 없습니다.
+                // DB 콜레이션이 utf8mb4_unicode_ci(대소문자 구분 없음)라 LIKE 만으로 충분합니다.
+                if (searchContent) keywordPredicates.add(cb.like(root.get("content"), pattern));
+                if (!keywordPredicates.isEmpty()) {
+                    predicates.add(cb.or(keywordPredicates.toArray(jakarta.persistence.criteria.Predicate[]::new)));
+                }
+            }
+            return predicates.isEmpty()
+                    ? cb.conjunction()
+                    : cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+    }
+
+    private static List<ArticleSummaryResponse> toSummaries(List<Article> articles) {
+        return articles.stream().map(ArticleSummaryResponse::from).toList();
+    }
+
+    private static List<ArticleSummaryResponse> withImage(List<Article> articles) {
+        return articles.stream()
+                .map(ArticleSummaryResponse::from)
+                // 슬라이더는 큰 이미지를 그대로 쓰기 때문에 실제 사진이 있는 기사만 노출합니다.
+                .filter(a -> a.thumbnailUrl() != null && !a.videoThumbnail())
+                .toList();
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(value, max));
     }
 }

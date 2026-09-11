@@ -32,20 +32,11 @@ dependencies {
     // 3. AWS S3 / Minio
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3:3.1.1'
 
-    // 4. Mail (IMAP / SMTP)
-    implementation 'org.springframework.boot:spring-boot-starter-mail'
-
-    // 5. HWP Parsing
-    implementation 'kr.dogfoot:hwplib:1.1.4'
-
-    // 6. Gemini AI (WebClient)
-    implementation 'org.springframework.boot:spring-boot-starter-webflux'
-
-    // 7. Utility (Lombok)
+    // 4. Utility (Lombok)
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // 8. Test
+    // 5. Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'com.h2database:h2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

@@ -1,11 +1,14 @@
 package com.newspaper.api_server.controller;
 
 import com.newspaper.api_server.dto.ArticleHomeResponse;
+import com.newspaper.api_server.config.AdminAuthInterceptor;
 import com.newspaper.api_server.service.ArticleService;
+import com.newspaper.api_server.support.AdminTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -18,6 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ArticleApiController.class)
+// WebConfig 가 인터셉터를 요구하므로 함께 올립니다. 공개 조회가 인증에 걸리지 않는지도 같이 검증됩니다.
+@Import(AdminAuthInterceptor.class)
 class ArticleApiControllerHomeTest {
 
     @Autowired
@@ -25,6 +30,9 @@ class ArticleApiControllerHomeTest {
 
     @MockBean
     private ArticleService articleService;
+
+    @MockBean
+    private AdminTokenService adminTokenService;
 
     @Test
     void findHome_returnsHomeArticles() throws Exception {

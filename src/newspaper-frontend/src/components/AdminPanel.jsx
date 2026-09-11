@@ -2,27 +2,9 @@ import { useState, useEffect } from "react";
 import { getDisplaySettings, saveDisplaySettings } from "../utils/displaySettings";
 import { getBrandConfig } from "../config/brandConfig";
 import { useBrandSettings } from "../context/BrandSettingsContext";
+import { authFetch } from "../api/http";
 
 export default function AdminPanel() {
-  const [config, setConfig] = useState({ allowedSenders: [], modificationKeywords: [] });
-  const [senderInput, setSenderInput] = useState("");
-  const [keywordInput, setKeywordInput] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Fetch state
-  const [fetching, setFetching] = useState(false);
-
-  // Schedule config (editable form state)
-  const [scheduleConfig, setScheduleConfig] = useState(null);
-  const [scheduleForm, setScheduleForm] = useState(null);
-  const [scheduleLoading, setScheduleLoading] = useState(true);
-  const [scheduleDirty, setScheduleDirty] = useState(false);
-
-  // Mail process logs
-  const [mailLogs, setMailLogs] = useState([]);
-  const [mailLogsLoading, setMailLogsLoading] = useState(false);
-
   // Display settings (editable form)
   const [display, setDisplay] = useState(getDisplaySettings());
   const [displayForm, setDisplayForm] = useState(getDisplaySettings());
@@ -40,130 +22,9 @@ export default function AdminPanel() {
   const [sidebarLongBanners, setSidebarLongBanners] = useState([]);
   const [bottomBannerBanners, setBottomBannerBanners] = useState([]);
 
-  // AI summary loading state per log
-  const [summaryLoading, setSummaryLoading] = useState({});
-
   // 이미지 정리 실행 상태
   const [cleanupRunning, setCleanupRunning] = useState(false);
 
-  const fetchConfig = async () => {
-    try {
-      setError(null);
-      const res = await fetch("/api/admin/agent-config");
-      if (!res.ok) throw new Error("설정을 불러오지 못했습니다.");
-      const data = await res.json();
-      setConfig({
-        allowedSenders: data.allowedSenders || [],
-        modificationKeywords: data.modificationKeywords || [],
-      });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchScheduleConfig = async () => {
-    try {
-      const res = await fetch("/api/admin/schedule-config");
-      if (res.ok) {
-        const data = await res.json();
-        setScheduleConfig(data);
-        setScheduleForm(data);
-        setScheduleDirty(false);
-      }
-    } catch (e) {
-      console.error("Schedule config load failed:", e);
-    } finally {
-      setScheduleLoading(false);
-    }
-  };
-
-  const saveScheduleConfig = async () => {
-    try {
-      const res = await fetch("/api/admin/schedule-config", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(scheduleForm),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setScheduleConfig(data);
-        setScheduleForm(data);
-        setScheduleDirty(false);
-        alert("스케줄 설정이 저장되었습니다.");
-      }
-    } catch (e) {
-      alert("스케줄 설정 저장 실패: " + e.message);
-    }
-  };
-
-  const handleScheduleChange = (key, value) => {
-    setScheduleForm(prev => ({ ...prev, [key]: value }));
-    setScheduleDirty(true);
-  };
-
-  const fetchMailLogs = async () => {
-    try {
-      setMailLogsLoading(true);
-      const res = await fetch("/api/admin/mail-process-logs?limit=50");
-      if (res.ok) {
-        const data = await res.json();
-        setMailLogs(data);
-      }
-    } catch (e) {
-      console.error("Mail logs load failed:", e);
-    } finally {
-      setMailLogsLoading(false);
-    }
-  };
-
-  const clearMailLogs = async () => {
-    if (!window.confirm("메일 처리 로그를 모두 지우시겠습니까?")) return;
-    try {
-      await fetch("/api/admin/mail-process-logs", { method: "DELETE" });
-      setMailLogs([]);
-    } catch (e) {
-      alert("로그 삭제 실패: " + e.message);
-    }
-  };
-
-  const runFetchNow = async () => {
-    setFetching(true);
-    try {
-      const res = await fetch("/api/agent/fetch", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      await fetchMailLogs();
-      await fetchScheduleConfig();
-
-      const message = `완료!\n총 처리: ${data.totalProcessed || 0}개\n성공: ${data.successCount || 0}개\n실패: ${data.failureCount || 0}개`;
-      alert(message);
-    } catch (e) {
-      alert("실행 중 오류: " + e.message);
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  const runAiSummary = async (logId) => {
-    setSummaryLoading(prev => ({ ...prev, [logId]: true }));
-    try {
-      const imgWidth = encodeURIComponent(displayForm.imageMaxWidth || "400px");
-      const res = await fetch("/api/agent/ai-summary/" + logId + "?imageMaxWidth=" + imgWidth, { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        alert("AI 기사 생성 완료!\n제목: " + (data.title || ""));
-        await fetchMailLogs();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert("AI 요약 실패: " + (errData.error || "알 수 없는 오류"));
-      }
-    } catch (e) {
-      alert("AI 요약 오류: " + e.message);
-    } finally {
-      setSummaryLoading(prev => ({ ...prev, [logId]: false }));
-    }
-  };
 
   const runImageCleanup = async () => {
     if (!window.confirm("DB에 연결되지 않은 이미지 파일을 버킷에서 정리합니다.\n브랜드 배너/로고 등도 함께 고려되지만,\n실행 전 반드시 최신 백업을 권장합니다.\n계속하시겠습니까?")) {
@@ -171,7 +32,7 @@ export default function AdminPanel() {
     }
     setCleanupRunning(true);
     try {
-      const res = await fetch("/api/admin/cleanup-orphan-images", {
+      const res = await authFetch("/api/admin/cleanup-orphan-images", {
         method: "POST",
       });
       if (!res.ok) {
@@ -289,7 +150,7 @@ export default function AdminPanel() {
       const renamed = new File([file], `${baseName}${ext || ".png"}`, { type: file.type || "image/png" });
 
       formData.append("file", renamed);
-      const res = await fetch("/api/admin/brand-assets", {
+      const res = await authFetch("/api/admin/brand-assets", {
         method: "POST",
         body: formData,
       });
@@ -319,7 +180,7 @@ export default function AdminPanel() {
       const renamed = new File([file], `${baseName}${ext || ".png"}`, { type: file.type || "image/png" });
       formData.append("file", renamed);
 
-      const res = await fetch("/api/admin/brand-assets", {
+      const res = await authFetch("/api/admin/brand-assets", {
         method: "POST",
         body: formData,
       });
@@ -387,7 +248,7 @@ export default function AdminPanel() {
 
       if (!window.confirm("이 배너 이미지를 삭제하시겠습니까?")) return;
 
-      await fetch("/api/admin/brand-assets?url=" + encodeURIComponent(url), {
+      await authFetch("/api/admin/brand-assets?url=" + encodeURIComponent(url), {
         method: "DELETE",
       }).catch(() => {});
 
@@ -411,68 +272,6 @@ export default function AdminPanel() {
     }
   };
 
-  useEffect(() => {
-    fetchConfig();
-  }, []);
-
-  const addSender = async (e) => {
-    e.preventDefault();
-    const email = senderInput.trim();
-    if (!email) return;
-    try {
-      const res = await fetch("/api/admin/agent-config/senders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) throw new Error("추가 실패");
-      setSenderInput("");
-      await fetchConfig();
-    } catch (e) {
-      alert(e.message);
-    }
-  };
-
-  const removeSender = async (id) => {
-    if (!window.confirm("삭제하시겠습니까?")) return;
-    try {
-      await fetch("/api/admin/agent-config/senders/" + id, { method: "DELETE" });
-      await fetchConfig();
-    } catch (e) {
-      alert(e.message);
-    }
-  };
-
-  const addKeyword = async (e) => {
-    e.preventDefault();
-    const keyword = keywordInput.trim();
-    if (!keyword) return;
-    try {
-      const res = await fetch("/api/admin/agent-config/modification-keywords", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword }),
-      });
-      if (!res.ok) throw new Error("추가 실패");
-      setKeywordInput("");
-      await fetchConfig();
-    } catch (e) {
-      alert(e.message);
-    }
-  };
-
-  const removeKeyword = async (id) => {
-    if (!window.confirm("삭제하시겠습니까?")) return;
-    try {
-      await fetch("/api/admin/agent-config/modification-keywords/" + id, { method: "DELETE" });
-      await fetchConfig();
-    } catch (e) {
-      alert(e.message);
-    }
-  };
-
-  if (loading) return <div className="p-8 text-gray-500">로딩 중...</div>;
-  if (error) return <div className="p-8 text-red-600">{error}</div>;
 
   return (
     <div className="max-w-5xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-10">

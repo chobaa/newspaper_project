@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useBrandSettings } from "../context/BrandSettingsContext";
+import { NEWS_CATEGORIES } from "../config/categories";
 
 const SEARCH_TYPES = { TITLE: "title", CONTENT: "content", TITLE_AND_CONTENT: "titleAndContent" };
 const SEARCH_TYPE_LABELS = {
@@ -34,10 +35,8 @@ export default function Header({
     }
   }, [isOpen]);
 
-  // ✅ 요청하신 8개 카테고리로 변경
-  const menus = [
-    "성남시정", "성남시의회", "사회/복지", "교육/문화", "경기도정", "경기도의회", "인터뷰칼럼", "동영상뉴스"
-  ];
+  // 헤더 메뉴와 홈 위젯이 항상 같은 카테고리를 쓰도록 config에서 가져옵니다.
+  const menus = NEWS_CATEGORIES;
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200">

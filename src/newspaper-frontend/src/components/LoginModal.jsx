@@ -1,5 +1,6 @@
 // src/components/LoginModal.jsx
 import { useState } from "react";
+import { saveAdminToken } from "../api/auth";
 
 export default function LoginModal({ isOpen, onClose, onLogin }) {
   const [id, setId] = useState("");
@@ -19,6 +20,13 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
       if (!res.ok) {
         throw new Error("아이디 또는 비밀번호가 틀렸습니다.");
       }
+
+      // 이후 쓰기·관리자 요청은 이 토큰을 Authorization 헤더로 보냅니다.
+      const data = await res.json();
+      if (!data.token) {
+        throw new Error("서버가 관리자 토큰을 발급하지 않았습니다.");
+      }
+      saveAdminToken(data.token);
 
       alert("관리자로 로그인되었습니다.");
       onLogin();
